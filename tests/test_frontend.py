@@ -246,3 +246,15 @@ def test_keyboard_shortcuts_support_submit_escape_and_copy() -> None:
     assert "Ctrl+Shift+C" in INDEX_HTML
 
 
+def test_branding_and_favicon_are_configured() -> None:
+    assert "<title>ExtrAI — Extração inteligente de documentos</title>" in MARKUP
+    assert '<link rel="icon" type="image/x-icon" href="/favicon.ico" />' in MARKUP
+    assert '<link rel="apple-touch-icon" href="/static/logo.png" />' in MARKUP
+    assert '<header class="app-header">' in MARKUP
+    assert '<img class="app-logo" src="/static/logo.png" alt="ExtrAI"' in MARKUP
+    assert "<h1>ExtrAI</h1>" in MARKUP
+    assert '<span class="app-subtitle">Extração inteligente de documentos</span>' in MARKUP
+    assert ".app-header {" in STYLES
+    assert ".app-logo {" in STYLES
+    assert "body.has-extracted .app-logo { width: 28px; height: 28px; }" in STYLES
+    assert "body.has-extracted .app-subtitle { display: none; }" in STYLES

@@ -619,3 +619,29 @@ def test_copy_shortcuts_trigger_data_copy(page_at_home: Page) -> None:
 
     assert "MARIA DE TESTE" in copied
     assert "123.456.789-09" in copied
+
+
+def test_brand_header_and_logo_are_visible(page_at_home: Page) -> None:
+    page = page_at_home
+    assert page.title() == "ExtrAI — Extração inteligente de documentos"
+
+    logo = page.locator(".app-logo")
+    assert logo.is_visible()
+    assert logo.get_attribute("src") == "/static/logo.png"
+
+    heading = page.locator(".app-title-group h1")
+    assert heading.inner_text() == "ExtrAI"
+
+    subtitle = page.locator(".app-subtitle")
+    assert subtitle.is_visible()
+    assert subtitle.inner_text() == "Extração inteligente de documentos"
+
+    answer(page)
+    upload(page)
+    analyze(page)
+
+    assert not subtitle.is_visible()
+    box = logo.bounding_box()
+    assert box is not None
+    assert round(box["width"]) == 28
+

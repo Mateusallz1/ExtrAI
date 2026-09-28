@@ -84,11 +84,21 @@ def test_csp_forbids_inline_code_and_framing() -> None:
 def test_only_the_known_assets_are_served() -> None:
     css = client().get("/static/app.css")
     script = client().get("/static/app.js")
+    logo = client().get("/static/logo.png")
+    favicon_static = client().get("/static/favicon.ico")
+    favicon_root = client().get("/favicon.ico")
 
     assert css.status_code == 200
     assert css.headers["content-type"].startswith("text/css")
     assert script.status_code == 200
     assert script.headers["content-type"].startswith("text/javascript")
+    assert logo.status_code == 200
+    assert logo.headers["content-type"].startswith("image/png")
+    assert favicon_static.status_code == 200
+    assert favicon_static.headers["content-type"].startswith("image/x-icon")
+    assert favicon_root.status_code == 200
+    assert favicon_root.headers["content-type"].startswith("image/x-icon")
+    assert favicon_root.content == favicon_static.content
     assert client().get("/static/../main.py").status_code == 404
     assert client().get("/static/.env").status_code == 404
 

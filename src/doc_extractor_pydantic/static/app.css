@@ -22,6 +22,11 @@
 body { margin: 0; overflow-x: hidden; }
 body.has-result { overflow: hidden; }
 main { width: 100%; max-width: none; box-sizing: border-box; margin: 0; padding: 40px clamp(20px, 4vw, 64px) 64px; }
+.app-header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+.app-logo { width: 68px; height: 68px; border-radius: 12px; object-fit: contain; flex-shrink: 0; }
+.app-title-group { display: flex; flex-direction: column; }
+.app-title-group h1 { margin: 0; }
+.app-subtitle { color: var(--muted-foreground); font-size: 0.875rem; font-weight: 500; letter-spacing: -0.01em; }
 h1 { margin: 0 0 8px; letter-spacing: -0.03em; font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.15; }
 h2 { margin: 0 0 20px; font-size: 1.5rem; line-height: 1.25; }
 .muted { color: var(--muted-foreground); }
@@ -61,7 +66,9 @@ input[type="file"]::file-selector-button { margin-right: 10px; border: 0; border
 #upload-panel.drag-active * { pointer-events: none; }
 #upload-panel.drag-active::after { content: "Solte o documento aqui para carregar"; display: block; margin-top: 10px; font-size: 0.8125rem; font-weight: 500; color: var(--foreground); }
 body.has-extracted main { padding-top: 24px; }
-
+body.has-extracted .app-logo { width: 28px; height: 28px; }
+body.has-extracted .app-subtitle { display: none; }
+body.has-extracted h1 { font-size: 1.5rem; }
 body.has-extracted #upload-panel { padding: 14px 20px; }
 body.has-extracted .layout { height: var(--result-height, auto); }
 body.has-extracted .layout > .panel { overflow: auto; }

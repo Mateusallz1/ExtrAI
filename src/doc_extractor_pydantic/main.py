@@ -35,7 +35,10 @@ static_index = STATIC_DIR / "index.html"
 STATIC_ASSETS = {
     "app.css": "text/css; charset=utf-8",
     "app.js": "text/javascript; charset=utf-8",
+    "logo.png": "image/png",
+    "favicon.ico": "image/x-icon",
 }
+
 
 MAX_REQUEST_BYTES = settings.max_upload_bytes + MULTIPART_OVERHEAD_BYTES
 SECURITY_HEADERS = {
@@ -220,7 +223,17 @@ STATIC_CACHE: dict[str, bytes] = {
     "index.html": static_index.read_bytes(),
     "app.css": (STATIC_DIR / "app.css").read_bytes(),
     "app.js": (STATIC_DIR / "app.js").read_bytes(),
+    "logo.png": (STATIC_DIR / "logo.png").read_bytes(),
+    "favicon.ico": (STATIC_DIR / "favicon.ico").read_bytes(),
 }
+
+
+@app.get("/favicon.ico")
+async def favicon() -> Response:
+    content = STATIC_CACHE.get("favicon.ico")
+    if content is None:
+        content = (STATIC_DIR / "favicon.ico").read_bytes()
+    return Response(content=content, media_type="image/x-icon")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -233,7 +246,7 @@ async def index() -> HTMLResponse:
 
 @app.get("/static/{asset}")
 async def static_asset(asset: str) -> Response:
-    """Serve only the two known assets, never an arbitrary path."""
+    """Serve only the known assets, never an arbitrary path."""
 
     media_type = STATIC_ASSETS.get(asset)
     if media_type is None:
