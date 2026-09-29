@@ -138,6 +138,15 @@ input.addEventListener("change", () => {
   selectedIsPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   imagePreview.classList.toggle("hidden", !isImage);
   if (isImage) imagePreview.src = previewUrl;
+
+  if (!isImage && !selectedIsPdf) {
+    status.className = "status error";
+    status.textContent = "Formato não suportado. Use PDF, JPG, JPEG, PNG ou WEBP.";
+    submit.disabled = true;
+    return;
+  }
+
+  form.requestSubmit();
 });
 
 window.addEventListener("paste", (e) => {
@@ -158,7 +167,6 @@ window.addEventListener("paste", (e) => {
   dt.items.add(file);
   input.files = dt.files;
   input.dispatchEvent(new Event("change", { bubbles: true }));
-  status.textContent = `Arquivo colado: ${file.name || "imagem da área de transferência"}.`;
 });
 
 let dragDepth = 0;
@@ -232,7 +240,6 @@ function handleDrop(e) {
   dt.items.add(file);
   input.files = dt.files;
   input.dispatchEvent(new Event("change", { bubbles: true }));
-  status.textContent = `Arquivo selecionado: ${file.name}.`;
 }
 
 uploadPanel.addEventListener("drop", (e) => {
@@ -413,7 +420,7 @@ function renderFocusPreviews(previews, kind) {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!input.files?.[0]) return;
+  if (!input.files?.[0] || submit.disabled) return;
   submit.disabled = true;
   document.body.classList.remove("has-result");
   result.classList.add("hidden");

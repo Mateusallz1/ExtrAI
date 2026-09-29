@@ -81,6 +81,14 @@ def test_selecting_a_new_file_cancels_the_running_analysis() -> None:
     assert "if (pendingRequest) pendingRequest.abort();" in change_handler
 
 
+def test_file_arrival_triggers_automatic_extraction() -> None:
+    change_handler = INDEX_HTML.split('input.addEventListener("change"', maxsplit=1)[1]
+    change_handler = change_handler.split('form.addEventListener("submit"', maxsplit=1)[0]
+    assert "form.requestSubmit();" in change_handler
+    assert "Formato não suportado" in change_handler
+    assert "submit.disabled = true;" in change_handler
+
+
 def test_late_response_cannot_overwrite_the_current_file() -> None:
     submit_handler = INDEX_HTML.split('form.addEventListener("submit"', maxsplit=1)[1]
     submit_handler = submit_handler.split("function renderResult", maxsplit=1)[0]
