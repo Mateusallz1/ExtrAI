@@ -35,6 +35,9 @@ MAX_CONCURRENT_EXTRACTIONS = 2
 EXTRACTION_TIMEOUT_SECONDS = 90.0
 """Total time budget allowed for provider responses, including retries."""
 
+MODEL_TIMEOUT_SECONDS = 45.0
+"""Time budget allowed for a single model attempt before failing over to a fallback model."""
+
 PROVIDER_RETRIES = 2
 """Additional attempts for invalid structured output or transient provider failure."""
 

@@ -40,6 +40,7 @@ Sem ele, `tests/test_frontend_dom.py` falha em vez de passar em silêncio.
 - Quando existirem imagens incorporadas, a frente principal aparece em detalhe
   ampliável e os demais blocos aparecem como miniaturas.
 - Copiar dados funciona ou exibe uma orientação manual amigável.
+- Falha transitória ou degradação de tempo do modelo principal aciona fallback automático para os modelos configurados.
 - Testes não fazem chamadas reais ao Gemini ou a outro provider.
 
 ## Limites atuais
