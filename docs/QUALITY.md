@@ -37,6 +37,7 @@ Sem ele, `tests/test_frontend_dom.py` falha em vez de passar em silêncio.
 - Aviso do modelo sobre um campo que o tipo identificado não possui é descartado:
   um RG não avisa sobre registro, categoria ou validade.
 - A interface não mistura resultados de arquivos diferentes.
+- A extração inicia automaticamente quando um arquivo válido é selecionado, arrastado ou colado, mantendo reenvio manual via botão ou atalho.
 - Quando existirem imagens incorporadas, a frente principal aparece em detalhe
   ampliável e os demais blocos aparecem como miniaturas.
 - Copiar dados funciona ou exibe uma orientação manual amigável.

@@ -54,7 +54,6 @@ def answer(page: Page, body: dict | None = None, status: int = 200) -> None:
 
 
 def analyze(page: Page) -> None:
-    page.click("#submit")
     page.wait_for_selector("#result:not(.hidden)")
 
 
@@ -123,7 +122,6 @@ def test_a_response_in_flight_cannot_land_on_a_new_selection(page_at_home: Page)
     page.route("**/api/extract", lambda route: held.append(route))
 
     upload(page, "primeiro.png")
-    page.click("#submit")
     for _ in range(100):
         if held:
             break
@@ -142,6 +140,13 @@ def test_a_response_in_flight_cannot_land_on_a_new_selection(page_at_home: Page)
     assert page.locator("#result").is_hidden()
     assert page.locator(".field-card").count() == 0
     assert "Tudo certo" not in page.locator("#status").inner_text()
+    assert page.locator("#submit").is_disabled()
+
+    assert len(held) >= 2
+    held[1].fulfill(
+        status=200, content_type="application/json", body=json.dumps(RESULT)
+    )
+    page.wait_for_selector("#result:not(.hidden)")
     assert not page.locator("#submit").is_disabled()
 
 
@@ -152,18 +157,20 @@ def test_selecting_a_new_file_clears_the_previous_result(page_at_home: Page) -> 
     analyze(page)
     assert page.locator(".field-card").count() > 0
 
+    held = []
+    page.route("**/api/extract", lambda route: held.append(route))
     upload(page, "outro.png")
 
     assert page.locator("#result").is_hidden()
     assert page.locator(".field-card").count() == 0
     assert page.locator("#raw-text").inner_text() == ""
+    assert "analyzing" in (page.locator("#status").get_attribute("class") or "")
 
 
 def test_error_detail_from_the_api_reaches_the_status_line(page_at_home: Page) -> None:
     page = page_at_home
     answer(page, {"detail": "O arquivo excede o limite local de 15 MB."}, status=413)
     upload(page)
-    page.click("#submit")
     page.wait_for_selector("#status.error")
 
     assert "excede o limite local" in page.locator("#status").inner_text()
@@ -295,6 +302,7 @@ def test_preview_panel_has_no_inner_scrollbar(page_at_home: Page) -> None:
 
 def test_pasting_image_from_clipboard_populates_input(page_at_home: Page) -> None:
     page = page_at_home
+    answer(page)
     page.evaluate(
         """() => {
             const dt = new DataTransfer();
@@ -303,8 +311,12 @@ def test_pasting_image_from_clipboard_populates_input(page_at_home: Page) -> Non
             window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt }));
         }"""
     )
-    assert not page.locator("#submit").is_disabled()
-    assert "print.png" in page.locator("#status").inner_text()
+    page.wait_for_selector("#result:not(.hidden)")
+    assert page.locator('.field-card[data-found="true"]').count() > 0
+    assert (
+        page.evaluate('() => document.getElementById("document").files[0]?.name')
+        == "print.png"
+    )
 
 
 def test_pasting_while_editing_field_does_not_replace_document(page_at_home: Page) -> None:
@@ -465,7 +477,6 @@ def test_status_shows_timer_and_analyzing_state_during_extraction(
     page.route("**/api/extract", lambda route: held.append(route))
 
     upload(page, "doc.png")
-    page.click("#submit")
 
     for _ in range(100):
         if held:
@@ -543,6 +554,7 @@ def test_dragging_file_over_upload_panel_activates_and_resets_drag_style(
 
 def test_dropping_file_on_upload_panel_populates_input(page_at_home: Page) -> None:
     page = page_at_home
+    answer(page)
     page.evaluate(
         """() => {
             const dt = new DataTransfer();
@@ -552,8 +564,12 @@ def test_dropping_file_on_upload_panel_populates_input(page_at_home: Page) -> No
             panel.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true }));
         }"""
     )
-    assert not page.locator("#submit").is_disabled()
-    assert "documento_arrastado.png" in page.locator("#status").inner_text()
+    page.wait_for_selector("#result:not(.hidden)")
+    assert page.locator('.field-card[data-found="true"]').count() > 0
+    assert (
+        page.evaluate('() => document.getElementById("document").files[0]?.name')
+        == "documento_arrastado.png"
+    )
     assert "drag-active" not in (page.locator("#upload-panel").get_attribute("class") or "")
 
 
@@ -570,18 +586,86 @@ def test_dropping_unsupported_file_shows_error(page_at_home: Page) -> None:
     )
     assert "Formato não suportado" in page.locator("#status").inner_text()
     assert "error" in (page.locator("#status").get_attribute("class") or "")
+    assert page.locator("#result").is_hidden()
+
+
+def test_selecting_unsupported_file_shows_error(page_at_home: Page) -> None:
+    page = page_at_home
+    page.set_input_files(
+        "#document",
+        files=[{"name": "test.txt", "mimeType": "text/plain", "buffer": b"test"}],
+    )
+    assert "Formato não suportado" in page.locator("#status").inner_text()
+    assert "error" in (page.locator("#status").get_attribute("class") or "")
+    assert page.locator("#result").is_hidden()
+    assert page.locator("#submit").is_disabled()
+
+
+def test_selecting_file_automatically_starts_extraction_without_submit_click(
+    page_at_home: Page,
+) -> None:
+    page = page_at_home
+    answer(page)
+    upload(page, "auto.png")
+    page.wait_for_selector("#result:not(.hidden)")
+    assert page.locator('.field-card[data-found="true"]').count() > 0
+    assert page.locator("#result").is_visible()
 
 
 def test_ctrl_enter_triggers_document_analysis(page_at_home: Page) -> None:
     page = page_at_home
-    answer(page)
+    requests: list[str] = []
+    page.route(
+        "**/api/extract",
+        lambda route: (
+            requests.append(route.request.url),
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(RESULT),
+            ),
+        ),
+    )
     upload(page)
+    page.wait_for_selector("#result:not(.hidden)")
+    assert len(requests) == 1
 
     page.keyboard.press("Control+Enter")
+    for _ in range(50):
+        if len(requests) == 2:
+            break
+        page.wait_for_timeout(50)
+    assert len(requests) == 2
     page.wait_for_selector("#result:not(.hidden)")
-
     assert page.locator("#result").is_visible()
-    assert page.locator('.field-card[data-found="true"]').count() > 0
+
+
+def test_manual_submit_button_reanalyzes_document(page_at_home: Page) -> None:
+    page = page_at_home
+    requests: list[str] = []
+    page.route(
+        "**/api/extract",
+        lambda route: (
+            requests.append(route.request.url),
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(RESULT),
+            ),
+        ),
+    )
+    upload(page)
+    page.wait_for_selector("#result:not(.hidden)")
+    assert len(requests) == 1
+
+    page.click("#submit")
+    for _ in range(50):
+        if len(requests) == 2:
+            break
+        page.wait_for_timeout(50)
+    assert len(requests) == 2
+    page.wait_for_selector("#result:not(.hidden)")
+    assert page.locator("#result").is_visible()
 
 
 def test_escape_resets_zoom_in_focus_panel(page_at_home: Page) -> None:
