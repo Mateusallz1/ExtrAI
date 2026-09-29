@@ -61,6 +61,7 @@ def test_health_does_not_expose_credentials() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
+    assert "fallbackModels" in body
     assert "OPENAI_API_KEY" not in body
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-content-type-options"] == "nosniff"

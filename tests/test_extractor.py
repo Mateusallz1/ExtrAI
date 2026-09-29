@@ -636,3 +636,177 @@ def test_extraction_handles_pydantic_ai_run_usage_without_deprecation_warning() 
         "inputTokens": 350,
         "outputTokens": 80,
     }
+
+
+def test_primary_model_failure_triggers_fallback_model(monkeypatch) -> None:
+    class FailingPrimaryAgent:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def run(self, messages, *args, **kwargs):
+            self.calls += 1
+            raise ModelHTTPError(503, "primary:model", {"status": "unavailable"})
+
+    class SuccessfulFallbackAgent:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def run(self, messages, *args, **kwargs):
+            self.calls += 1
+            return type(
+                "Result",
+                (),
+                {"output": DocumentExtraction(kind="cnh")},
+            )()
+
+    primary = FailingPrimaryAgent()
+    fallback = SuccessfulFallbackAgent()
+    monkeypatch.setattr(extractor_module, "PROVIDER_BACKOFF_SECONDS", 0)
+
+    settings = Settings(
+        model="primary:model",
+        fallback_models=("fallback:model",),
+    )
+    extractor = DocumentExtractor(
+        settings=settings,
+        agent=primary,
+        fallback_agents=[fallback],
+    )
+    result = asyncio.run(extractor.extract("doc.png", PNG))
+
+    assert primary.calls == 3
+    assert fallback.calls == 1
+    assert result["kind"] == "cnh"
+    assert result["modelUsed"] == "fallback:model"
+
+
+def test_primary_model_timeout_triggers_fallback_model(monkeypatch) -> None:
+    class HangingPrimaryAgent:
+        async def run(self, messages, *args, **kwargs):
+            await asyncio.sleep(5.0)
+
+    class QuickFallbackAgent:
+        async def run(self, messages, *args, **kwargs):
+            return type(
+                "Result",
+                (),
+                {"output": DocumentExtraction(kind="rg")},
+            )()
+
+    primary = HangingPrimaryAgent()
+    fallback = QuickFallbackAgent()
+    monkeypatch.setattr(extractor_module, "MODEL_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(extractor_module, "EXTRACTION_TIMEOUT_SECONDS", 5.0)
+
+    settings = Settings(
+        model="primary:model",
+        fallback_models=("fallback:model",),
+    )
+    extractor = DocumentExtractor(
+        settings=settings,
+        agent=primary,
+        fallback_agents=[fallback],
+    )
+    result = asyncio.run(extractor.extract("doc.png", PNG))
+
+    assert result["kind"] == "rg"
+    assert result["modelUsed"] == "fallback:model"
+
+
+def test_all_models_failing_raises_provider_unavailable(monkeypatch) -> None:
+    class FailingAgent:
+        def __init__(self, name: str) -> None:
+            self.name = name
+            self.calls = 0
+
+        async def run(self, messages, *args, **kwargs):
+            self.calls += 1
+            raise ModelHTTPError(503, self.name, {"status": "unavailable"})
+
+    primary = FailingAgent("primary")
+    fallback = FailingAgent("fallback")
+    monkeypatch.setattr(extractor_module, "PROVIDER_BACKOFF_SECONDS", 0)
+
+    settings = Settings(
+        model="primary:model",
+        fallback_models=("fallback:model",),
+    )
+    extractor = DocumentExtractor(
+        settings=settings,
+        agent=primary,
+        fallback_agents=[fallback],
+    )
+
+    with pytest.raises(ProviderUnavailableError):
+        asyncio.run(extractor.extract("doc.png", PNG))
+
+    assert primary.calls == 3
+    assert fallback.calls == 3
+
+
+def test_non_retryable_error_does_not_trigger_fallback(monkeypatch) -> None:
+    class AuthFailingAgent:
+        async def run(self, messages, *args, **kwargs):
+            raise ModelHTTPError(401, "primary", {"status": "unauthorized"})
+
+    class ShouldNotBeCalledAgent:
+        def __init__(self) -> None:
+            self.called = False
+
+        async def run(self, messages, *args, **kwargs):
+            self.called = True
+            return type("Result", (), {"output": DocumentExtraction(kind="cnh")})()
+
+    fallback = ShouldNotBeCalledAgent()
+    settings = Settings(
+        model="primary:model",
+        fallback_models=("fallback:model",),
+    )
+    extractor = DocumentExtractor(
+        settings=settings,
+        agent=AuthFailingAgent(),
+        fallback_agents=[fallback],
+    )
+
+    with pytest.raises(ModelHTTPError) as exc_info:
+        asyncio.run(extractor.extract("doc.png", PNG))
+
+    assert exc_info.value.status_code == 401
+    assert not fallback.called
+
+
+def test_settings_fallback_models_env_parsing(monkeypatch) -> None:
+    monkeypatch.delenv("PYDANTIC_AI_FALLBACK_MODELS", raising=False)
+    default_settings = Settings.from_env()
+    assert default_settings.fallback_models == ("google:gemini-3-flash-preview",)
+
+    monkeypatch.setenv(
+        "PYDANTIC_AI_FALLBACK_MODELS",
+        "google:gemini-3-flash-preview, google:gemini-3.5-flash",
+    )
+    custom_settings = Settings.from_env()
+    assert custom_settings.fallback_models == (
+        "google:gemini-3-flash-preview",
+        "google:gemini-3.5-flash",
+    )
+
+    monkeypatch.setenv("PYDANTIC_AI_FALLBACK_MODELS", "")
+    disabled_settings = Settings.from_env()
+    assert disabled_settings.fallback_models == ()
+
+
+def test_settings_configured_fallback_models_filters_unconfigured(monkeypatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+
+    settings = Settings(
+        model="google:gemini-3.5-flash-lite",
+        fallback_models=(
+            "google:gemini-3-flash-preview",
+            "openai:gpt-4o-mini",
+            "google:gemini-3.5-flash-lite",
+        ),
+    )
+    configured = settings.configured_fallback_models()
+    assert configured == ("google:gemini-3-flash-preview",)
+

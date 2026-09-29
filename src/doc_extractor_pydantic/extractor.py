@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import time
 from io import BytesIO
 from pathlib import PurePath
@@ -9,7 +10,7 @@ from typing import Any
 
 import httpx
 from pydantic_ai import Agent, BinaryContent, UsageLimits
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
 from pydantic_ai.result import RunUsage
 from pypdf import PageObject, PdfReader
 from pypdf.generic import ArrayObject, ContentStream, StreamObject
@@ -25,6 +26,7 @@ from .limits import (
     MAX_PREVIEW_SCAN_PAGES,
     MAX_STREAM_OPERATIONS,
     MIN_PREVIEW_SIDE,
+    MODEL_TIMEOUT_SECONDS,
     PROVIDER_BACKOFF_SECONDS,
     PROVIDER_RETRIES,
     upload_limit_message,
@@ -80,20 +82,38 @@ def _provider_error(error: ModelHTTPError) -> RuntimeError:
     return error
 
 
+logger = logging.getLogger("doc_extractor_pydantic")
+
+
 class DocumentExtractor:
-    def __init__(self, settings: Settings | None = None, agent: Any | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        agent: Any | None = None,
+        fallback_agents: list[Any] | None = None,
+    ) -> None:
         self.settings = settings or Settings.from_env()
         self.agent = agent
+        self.fallback_agents = fallback_agents
+        self._cached_agents: dict[str, Any] = {}
+        if agent is not None:
+            self._cached_agents[self.settings.model] = agent
 
-    def _build_agent(self) -> Agent:
+    def _get_agent(self, model_name: str) -> Any:
+        if model_name not in self._cached_agents:
+            self._cached_agents[model_name] = self._build_agent(model_name)
+        return self._cached_agents[model_name]
+
+    def _build_agent(self, model: str | None = None) -> Agent:
+        target_model = model or self.settings.model
         model_settings: dict[str, object] | None = None
-        model_lower = self.settings.model.lower()
+        model_lower = target_model.lower()
         if model_lower.startswith(("google:", "google-cloud:", "google-gla:", "google-vertex:")):
             model_settings = {
                 "google_thinking_config": {"thinking_level": "MINIMAL"}
             }
         return Agent(
-            model=self.settings.model,
+            model=target_model,
             output_type=DocumentExtraction,
             instructions=EXTRACTION_INSTRUCTIONS,
             model_settings=model_settings,
@@ -116,9 +136,6 @@ class DocumentExtractor:
                 f"Configure as credenciais do provedor para {self.settings.model}."
             )
 
-        if self.agent is None:
-            self.agent = self._build_agent()
-
         media_type = media_type_for(file_name, content_type)
         pages = len(document.pages) if document is not None else 1
         previews = extract_pdf_previews(document)
@@ -133,14 +150,81 @@ class DocumentExtractor:
         ]
         if previews:
             message_parts.append(_preview_binary_content(previews[0]))
+
         started = time.perf_counter()
-        try:
-            async with asyncio.timeout(EXTRACTION_TIMEOUT_SECONDS):
-                result = await self._run_provider_with_backoff(message_parts)
-        except TimeoutError as error:
-            raise ExtractionTimeoutError(
-                "O provedor não respondeu dentro do tempo limite local."
-            ) from error
+        deadline = started + EXTRACTION_TIMEOUT_SECONDS
+
+        candidates: list[tuple[str, Any]] = []
+        if self.agent is not None:
+            candidates.append((self.settings.model, self.agent))
+            if self.fallback_agents:
+                for idx, fb_agent in enumerate(self.fallback_agents):
+                    name = (
+                        self.settings.fallback_models[idx]
+                        if idx < len(self.settings.fallback_models)
+                        else f"fallback-{idx}"
+                    )
+                    candidates.append((name, fb_agent))
+        else:
+            candidates.append((self.settings.model, self._get_agent(self.settings.model)))
+            for fb_model in self.settings.configured_fallback_models():
+                candidates.append((fb_model, self._get_agent(fb_model)))
+
+        last_error: Exception | None = None
+        result = None
+        model_used: str | None = None
+
+        for idx, (target_model, target_agent) in enumerate(candidates):
+            has_fallback = idx < len(candidates) - 1
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                raise ExtractionTimeoutError(
+                    "O provedor não respondeu dentro do tempo limite local."
+                )
+
+            per_model_timeout = (
+                min(MODEL_TIMEOUT_SECONDS, remaining) if has_fallback else remaining
+            )
+
+            try:
+                result = await self._run_model_with_backoff(
+                    agent=target_agent,
+                    message_parts=message_parts,
+                    timeout=per_model_timeout,
+                )
+                model_used = target_model
+                if idx > 0:
+                    logger.info(
+                        "fallback succeeded using model=%s after primary failure",
+                        target_model,
+                    )
+                break
+            except (
+                ProviderUnavailableError,
+                ProviderConnectionError,
+                ProviderRateLimitError,
+                TimeoutError,
+                ExtractionTimeoutError,
+                UnexpectedModelBehavior,
+            ) as error:
+                last_error = error
+                if not has_fallback:
+                    if isinstance(error, (TimeoutError, ExtractionTimeoutError)):
+                        raise ExtractionTimeoutError(
+                            "O provedor não respondeu dentro do tempo limite local."
+                        ) from error
+                    raise
+                logger.warning(
+                    "model %s failed (%s); attempting fallback",
+                    target_model,
+                    type(error).__name__,
+                )
+
+        if result is None:
+            if last_error is not None:
+                raise last_error
+            raise ProviderUnavailableError("O provedor de IA está temporariamente indisponível.")
+
         extraction = result.output
         if not isinstance(extraction, DocumentExtraction):
             extraction = DocumentExtraction.model_validate(extraction)
@@ -167,28 +251,40 @@ class DocumentExtractor:
             duration_ms=duration_ms,
             previews=previews,
             usage=usage_data,
+            model_used=model_used,
         )
 
+    async def _run_model_with_backoff(
+        self, agent: Any, message_parts: list[object], timeout: float
+    ) -> Any:
+        async with asyncio.timeout(timeout):
+            for attempt in range(PROVIDER_RETRIES + 1):
+                try:
+                    return await agent.run(
+                        message_parts,
+                        usage_limits=UsageLimits(
+                            response_tokens_limit=1500, request_limit=PROVIDER_RETRIES + 1
+                        ),
+                    )
+                except ModelHTTPError as error:
+                    retryable = error.status_code in {429, 500, 502, 503, 504}
+                    if not retryable or attempt >= PROVIDER_RETRIES:
+                        raise _provider_error(error) from error
+                except (httpx.ConnectError, httpx.TimeoutException) as error:
+                    if attempt >= PROVIDER_RETRIES:
+                        raise ProviderConnectionError(
+                            "Não foi possível conectar ao provedor de IA."
+                        ) from error
+                await asyncio.sleep(PROVIDER_BACKOFF_SECONDS * (2**attempt))
+            raise ProviderUnavailableError("O provedor de IA está temporariamente indisponível.")
+
     async def _run_provider_with_backoff(self, message_parts: list[object]) -> Any:
-        for attempt in range(PROVIDER_RETRIES + 1):
-            try:
-                return await self.agent.run(
-                    message_parts,
-                    usage_limits=UsageLimits(
-                        response_tokens_limit=1500, request_limit=PROVIDER_RETRIES + 1
-                    ),
-                )
-            except ModelHTTPError as error:
-                retryable = error.status_code in {429, 500, 502, 503, 504}
-                if not retryable or attempt >= PROVIDER_RETRIES:
-                    raise _provider_error(error) from error
-            except (httpx.ConnectError, httpx.TimeoutException) as error:
-                if attempt >= PROVIDER_RETRIES:
-                    raise ProviderConnectionError(
-                        "Não foi possível conectar ao provedor de IA."
-                    ) from error
-            await asyncio.sleep(PROVIDER_BACKOFF_SECONDS * (2**attempt))
-        raise ProviderUnavailableError("O provedor de IA está temporariamente indisponível.")
+        agent = self.agent if self.agent is not None else self._get_agent(self.settings.model)
+        return await self._run_model_with_backoff(
+            agent=agent,
+            message_parts=message_parts,
+            timeout=EXTRACTION_TIMEOUT_SECONDS,
+        )
 
 
 def validate_upload(
@@ -522,6 +618,7 @@ def to_api_response(
     duration_ms: int,
     previews: list[dict[str, Any]] | None = None,
     usage: dict[str, int] | None = None,
+    model_used: str | None = None,
 ) -> dict[str, Any]:
     fields: dict[str, dict[str, Any]] = {}
     for key, value in extraction.fields.populated().items():
@@ -541,7 +638,7 @@ def to_api_response(
         {k: v for k, v in p.items() if not k.startswith("_")}
         for p in (previews or [])
     ]
-    return {
+    response: dict[str, Any] = {
         "kind": extraction.kind,
         "pages": pages,
         "fields": fields,
@@ -552,6 +649,9 @@ def to_api_response(
         "previews": cleaned_previews,
         "usage": usage,
     }
+    if model_used is not None:
+        response["modelUsed"] = model_used
+    return response
 
 
 def format_text(extraction: DocumentExtraction) -> str:

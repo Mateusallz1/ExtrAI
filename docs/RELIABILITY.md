@@ -24,8 +24,9 @@ sobre o documento.
 | Content stream por página | 8 MB descomprimidos | Antes de interpretar os operadores |
 | Detalhes retornados | 4 | Corte antes de decodificar e codificar em base64 |
 | Análises simultâneas | 2 | `/api/extract`, com `429` acima disso |
-| Tempo de resposta do provedor | 90 s | `asyncio.wait_for` na chamada do agente, com `504` |
-| Tentativas do agente | 2 adicionais | Falhas transitórias (503/timeout) ou saída inválida |
+| Tempo de resposta do provedor | 90 s | `asyncio.timeout` global na chamada do extrator, com `504` |
+| Tempo por modelo antes de fallback | 45 s | Failover para o próximo modelo quando houver reserva |
+| Tentativas do agente | 2 adicionais por modelo | Falhas transitórias (503/timeout) ou saída inválida |
 
 O PDF é aberto uma única vez por requisição: `validate_upload` devolve o
 `PdfReader` já validado e o restante do fluxo reaproveita esse objeto.
@@ -43,9 +44,12 @@ desenhado várias vezes na mesma página vira um único detalhe.
 
 ## Falhas conhecidas
 
-- Provider indisponível resulta em HTTP 503 após backoff curto; quota ou limite
-  resulta em HTTP 429. Falhas não transitórias continuam como erro genérico HTTP 502.
-  Provider lento resulta em HTTP 504 quando o tempo limite local estoura; a
+- Falha transitória ou degradação no modelo primário aciona automaticamente os modelos de
+  reserva configurados em `PYDANTIC_AI_FALLBACK_MODELS` (padrão: `google:gemini-3-flash-preview`),
+  garantindo resiliência sem intervenção manual.
+- Se todos os modelos falharem, o resultado é HTTP 503 após retries; quota ou limite
+  resulta em HTTP 429. Falhas não transitórias (como credenciais inválidas) não acionam fallback.
+  Provider lento resulta em HTTP 504 quando o tempo limite local de 90s estoura; a
   chamada é cancelada, mas o custo já consumido no provedor não volta atrás.
 - O piloto não possui autenticação nem rate limit por cliente: acima de duas
   análises simultâneas a resposta é `429`, sem fila e sem nova tentativa
@@ -53,7 +57,7 @@ desenhado várias vezes na mesma página vira um único detalhe.
 - Um único stream comprimido ainda pode ocupar até o teto do `pypdf` (75 MB) ao
   ser descomprimido, antes de o limite de 8 MB por página descartá-lo.
 - O retry do agente pode repetir uma chamada em caso de falha transitória (503/timeout) ou saída inválida,
-  até 2 vezes adicionais e dentro do mesmo tempo limite total.
+  até 2 vezes adicionais por modelo e dentro do tempo limite global.
 - A extração de imagens incorporadas é uma melhoria de prévia; se falhar, o PDF
   não impede a análise, e a interface informa que não há detalhe ampliado.
 - A camada gratuita do provider pode apresentar variação de latência e políticas
