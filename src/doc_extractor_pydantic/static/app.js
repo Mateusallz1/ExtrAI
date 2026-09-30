@@ -553,6 +553,9 @@ function renderFieldCard(key, value) {
   fieldValue.setAttribute("role", "textbox");
   fieldValue.setAttribute("aria-label", value.label);
   fieldValue.textContent = value.value || "Não identificado";
+  if (value.value) {
+    fieldValue.title = "Clique para copiar ou editar";
+  }
   if (value.value && !checkFieldValidity(key, value.value)) {
     fieldValue.classList.add("field-invalid");
   }
@@ -580,6 +583,7 @@ function renderFieldCard(key, value) {
       fieldValue.textContent = "Não identificado";
       card.dataset.found = "false";
       copyButton.disabled = true;
+      fieldValue.title = "";
       fieldValue.classList.remove("field-invalid");
     } else {
       fieldValue.classList.toggle("field-invalid", !checkFieldValidity(key, text));
@@ -591,13 +595,31 @@ function renderFieldCard(key, value) {
     const isIdentified = Boolean(text && text !== "Não identificado");
     card.dataset.found = isIdentified ? "true" : "false";
     copyButton.disabled = !isIdentified;
+    fieldValue.title = isIdentified ? "Clique para copiar ou editar" : "";
     fieldValue.classList.toggle("field-invalid", !checkFieldValidity(key, text));
   });
 
-  copyButton.addEventListener("click", async () => {
+  let copyFeedbackTimer = null;
+  async function copyFieldValue() {
     const text = fieldValue.textContent.trim();
-    if (await copyText(text)) status.textContent = `${value.label} copiado.`;
+    if (!text || text === "Não identificado") return;
+    if (await copyText(text)) {
+      status.textContent = `${value.label} copiado.`;
+      fieldValue.classList.add("field-copied");
+      if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer);
+      copyFeedbackTimer = setTimeout(() => {
+        fieldValue.classList.remove("field-copied");
+        copyFeedbackTimer = null;
+      }, 600);
+    }
+  }
+
+  fieldValue.addEventListener("click", async () => {
+    if (window.getSelection && window.getSelection()?.toString()) return;
+    await copyFieldValue();
   });
+
+  copyButton.addEventListener("click", copyFieldValue);
   control.append(fieldValue, copyButton);
   card.append(name, control);
   return card;

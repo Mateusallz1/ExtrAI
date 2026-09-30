@@ -266,3 +266,13 @@ def test_branding_and_favicon_are_configured() -> None:
     assert ".app-logo {" in STYLES
     assert "body.has-extracted .app-logo { width: 28px; height: 28px; }" in STYLES
     assert "body.has-extracted .app-subtitle { display: none; }" in STYLES
+    assert ".app-logo { filter: brightness(0) invert(1); }" in STYLES
+
+
+def test_extracted_fields_support_click_to_copy_and_visual_feedback() -> None:
+    assert '.field-card[data-found="true"] .field-value { cursor: pointer; }' in STYLES
+    assert '.field-card[data-found="true"] .field-value:focus { cursor: text; }' in STYLES
+    assert ".field-value.field-copied" in STYLES
+    assert "copyFieldValue" in SCRIPT
+    assert 'fieldValue.addEventListener("click"' in SCRIPT
+    assert 'fieldValue.classList.add("field-copied")' in SCRIPT
