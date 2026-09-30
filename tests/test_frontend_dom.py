@@ -729,3 +729,30 @@ def test_brand_header_and_logo_are_visible(page_at_home: Page) -> None:
     assert box is not None
     assert round(box["width"]) == 28
 
+
+def test_clicking_field_value_directly_copies_content(page_at_home: Page) -> None:
+    page = page_at_home
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    answer(page)
+    upload(page)
+    analyze(page)
+
+    name_field = page.locator('[data-field-label="name"] .field-value')
+    assert name_field.get_attribute("title") == "Clique para copiar ou editar"
+    name_field.click()
+    page.wait_for_timeout(200)
+
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert copied == "MARIA DE TESTE"
+    assert page.locator("#status").inner_text() == "Nome copiado."
+    assert "field-copied" in (name_field.get_attribute("class") or "")
+
+
+def test_dark_mode_applies_white_filter_to_logo(page: Page, live_server: str) -> None:
+    page.emulate_media(color_scheme="dark")
+    page.goto(live_server)
+    logo = page.locator(".app-logo")
+    assert logo.is_visible()
+    logo_filter = logo.evaluate("el => window.getComputedStyle(el).filter")
+    assert "brightness(0)" in logo_filter and "invert(1)" in logo_filter
+
