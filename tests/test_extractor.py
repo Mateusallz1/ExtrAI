@@ -329,6 +329,18 @@ def test_unknown_document_keeps_every_warning() -> None:
     assert len(extraction.warnings) == 1
 
 
+def test_unknown_document_preserves_unsupported_document_guidance_warning() -> None:
+    extraction = DocumentExtraction(
+        kind="unknown",
+        warnings=[
+            "O documento aparenta ser um comprovante de residência. "
+            "O ExtrAI suporta atualmente RG e CNH."
+        ],
+    )
+    assert len(extraction.warnings) == 1
+    assert "comprovante de residência" in extraction.warnings[0]
+
+
 def test_an_invalid_value_still_warns_even_when_the_kind_does_not_expect_it() -> None:
     extraction = DocumentExtraction(
         kind="rg",

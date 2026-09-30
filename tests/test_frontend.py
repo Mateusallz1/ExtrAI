@@ -286,3 +286,20 @@ def test_submit_button_adapts_to_clear_and_shortcut_is_configured() -> None:
     assert 'setSubmitMode("clear");' in SCRIPT
     assert 'setSubmitMode("extract");' in SCRIPT
     assert 'e.altKey && e.key.toLowerCase() === "l"' in SCRIPT
+
+
+def test_unsupported_document_guidance_is_configured_in_frontend() -> None:
+    assert 'const warningsTitle = document.querySelector("#warnings-title");' in SCRIPT
+    assert "unsupportedWarning" in SCRIPT
+    assert "Documento não suportado" in SCRIPT
+    assert 'warningsTitle.textContent = "Documento não suportado";' in SCRIPT
+
+
+def test_cancel_analysis_is_configured_in_frontend() -> None:
+    assert "function cancelAnalysis()" in SCRIPT
+    assert 'submit.dataset.mode === "cancel"' in SCRIPT
+    assert 'setSubmitMode("cancel")' in SCRIPT
+    assert 'submit.textContent = "Parar análise"' in SCRIPT
+    assert 'submit.title = "Parar análise em andamento (Esc)"' in SCRIPT
+    assert 'status.textContent = "Análise cancelada."' in SCRIPT
+    assert "if (pendingRequest) {\n      e.preventDefault();\n      cancelAnalysis();" in SCRIPT

@@ -315,5 +315,65 @@ def test_provider_unavailable_is_returned_as_retryable_503(monkeypatch) -> None:
     assert response.json()["detail"] == "provider indisponível"
 
 
+def test_client_disconnect_cancels_extraction_and_releases_slot(monkeypatch) -> None:
+    extraction_started = asyncio.Event()
+    extraction_cancelled = asyncio.Event()
+
+    class HangingExtractor:
+        async def extract(self, file_name: str, content: bytes, content_type: str | None) -> dict:
+            extraction_started.set()
+            try:
+                await asyncio.sleep(10)
+                return {}
+            except asyncio.CancelledError:
+                extraction_cancelled.set()
+                raise
+
+    monkeypatch.setattr(main_module, "extractor", HangingExtractor())
+
+    async def run() -> None:
+        boundary = "------------------------boundary123"
+        body = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="document"; filename="test.png"\r\n'
+            "Content-Type: image/png\r\n\r\n"
+            "\x89PNG\r\n\x1a\nsynthetic\r\n"
+            f"--{boundary}--\r\n"
+        ).encode("latin-1")
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/extract",
+            "query_string": b"",
+            "headers": [
+                (b"host", b"127.0.0.1:8788"),
+                (b"content-type", f"multipart/form-data; boundary={boundary}".encode()),
+                (b"content-length", str(len(body)).encode()),
+            ],
+            "client": ("127.0.0.1", 50000),
+        }
+
+        sent_body = False
+
+        async def receive():
+            nonlocal sent_body
+            if not sent_body:
+                sent_body = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            await extraction_started.wait()
+            return {"type": "http.disconnect"}
+
+        async def send(message):
+            pass
+
+        await main_module.app(scope, receive, send)
+
+    assert main_module.extractions.active == 0
+    asyncio.run(run())
+    assert extraction_cancelled.is_set()
+    assert main_module.extractions.active == 0
+
+
 def test_app_title_is_doclume() -> None:
     assert main_module.app.title == "DocLume"
