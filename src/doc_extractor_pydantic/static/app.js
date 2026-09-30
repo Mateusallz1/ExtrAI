@@ -7,6 +7,23 @@ const uploadPanel = document.querySelector("#upload-panel");
 const uploadLabel = document.querySelector("#upload-label");
 const result = document.querySelector("#result");
 
+function setSubmitMode(mode) {
+  if (mode === "clear") {
+    submit.dataset.mode = "clear";
+    submit.type = "button";
+    submit.textContent = "Limpar análise";
+    submit.className = "secondary";
+    submit.title = "Limpar análise e voltar à tela inicial (Alt+L)";
+    submit.disabled = false;
+  } else {
+    submit.dataset.mode = "extract";
+    submit.type = "submit";
+    submit.textContent = "Analisar documento";
+    submit.className = "";
+    submit.title = "Analisar documento (Ctrl+Enter)";
+  }
+}
+
 const imagePreview = document.querySelector("#image-preview");
 const focusPanel = document.querySelector("#focus-panel");
 const focusEmpty = document.querySelector("#focus-empty");
@@ -113,6 +130,7 @@ input.addEventListener("change", () => {
     analysisTimer = null;
   }
   submit.disabled = false;
+  setSubmitMode("extract");
   lastData = null;
   document.body.classList.remove("has-result");
   result.classList.add("hidden");
@@ -631,6 +649,7 @@ function renderResult(data) {
   document.body.classList.add("has-extracted");
   introCopy.classList.add("hidden");
   uploadLabel.classList.remove("hidden");
+  setSubmitMode("clear");
   syncResultHeight();
   const kindLabels = { cnh: "CNH", rg: "RG", unknown: "documento" };
   const kindLabel = kindLabels[data.kind] || "documento";
@@ -751,7 +770,8 @@ window.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
     if (!submit.disabled && input.files?.[0]) {
       e.preventDefault();
-      submit.click();
+      setSubmitMode("extract");
+      form.requestSubmit();
     }
     return;
   }
@@ -786,6 +806,63 @@ window.addEventListener("keydown", (e) => {
       document.querySelector("#copy")?.click();
       return;
     }
+    if (e.altKey && e.key.toLowerCase() === "l") {
+      e.preventDefault();
+      clearExtraction();
+      return;
+    }
+  }
+});
+
+function clearExtraction() {
+  requestId += 1;
+  if (pendingRequest) {
+    pendingRequest.abort();
+    pendingRequest = null;
+  }
+  if (analysisTimer) {
+    clearInterval(analysisTimer);
+    analysisTimer = null;
+  }
+  form.reset();
+  lastData = null;
+  if (previewUrl) {
+    URL.revokeObjectURL(previewUrl);
+    previewUrl = null;
+  }
+  imagePreview.classList.add("hidden");
+  imagePreview.removeAttribute("src");
+  result.classList.add("hidden");
+  document.body.classList.remove("has-result");
+  document.body.classList.remove("has-extracted");
+  introCopy.classList.remove("hidden");
+  uploadLabel.classList.add("hidden");
+  summary.textContent = "";
+  warningBox.classList.add("hidden");
+  warnings.replaceChildren();
+  fields.replaceChildren();
+  rawText.textContent = "";
+  status.className = "status";
+  status.textContent = "";
+  focusState.previews = [];
+  focusState.index = 0;
+  focusState.kind = "unknown";
+  result.style.removeProperty("--result-height");
+  focusImageContainer.style.removeProperty("height");
+  focusPanel.classList.add("hidden");
+  focusEmpty.classList.add("hidden");
+  focusThumbnails.replaceChildren();
+  focusImage.removeAttribute("src");
+  resetZoom();
+  setSubmitMode("extract");
+  submit.disabled = false;
+  input.focus();
+}
+
+submit.addEventListener("click", (e) => {
+  if (submit.dataset.mode === "clear" || submit.type === "button") {
+    e.preventDefault();
+    clearExtraction();
   }
 });
 

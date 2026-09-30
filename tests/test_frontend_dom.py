@@ -640,7 +640,7 @@ def test_ctrl_enter_triggers_document_analysis(page_at_home: Page) -> None:
     assert page.locator("#result").is_visible()
 
 
-def test_manual_submit_button_reanalyzes_document(page_at_home: Page) -> None:
+def test_manual_submit_button_adapts_to_clear_when_results_are_visible(page_at_home: Page) -> None:
     page = page_at_home
     requests: list[str] = []
     page.route(
@@ -658,14 +658,15 @@ def test_manual_submit_button_reanalyzes_document(page_at_home: Page) -> None:
     page.wait_for_selector("#result:not(.hidden)")
     assert len(requests) == 1
 
-    page.click("#submit")
-    for _ in range(50):
-        if len(requests) == 2:
-            break
-        page.wait_for_timeout(50)
-    assert len(requests) == 2
-    page.wait_for_selector("#result:not(.hidden)")
-    assert page.locator("#result").is_visible()
+    submit = page.locator("#submit")
+    assert submit.inner_text() == "Limpar análise"
+    assert "secondary" in (submit.get_attribute("class") or "")
+
+    submit.click()
+    page.wait_for_timeout(100)
+    assert page.locator("#result").is_hidden()
+    assert submit.inner_text() == "Analisar documento"
+    assert "secondary" not in (submit.get_attribute("class") or "")
 
 
 def test_escape_resets_zoom_in_focus_panel(page_at_home: Page) -> None:
@@ -755,4 +756,44 @@ def test_dark_mode_applies_white_filter_to_logo(page: Page, live_server: str) ->
     assert logo.is_visible()
     logo_filter = logo.evaluate("el => window.getComputedStyle(el).filter")
     assert "brightness(0)" in logo_filter and "invert(1)" in logo_filter
+
+
+def test_submit_button_adapts_to_clear_and_resets_home_view(page_at_home: Page) -> None:
+    page = page_at_home
+    answer(page)
+    upload(page)
+    analyze(page)
+
+    submit = page.locator("#submit")
+    assert page.locator("#result").is_visible()
+    assert page.locator("#intro-copy").is_hidden()
+    assert submit.inner_text() == "Limpar análise"
+    assert "secondary" in (submit.get_attribute("class") or "")
+
+    submit.click()
+    page.wait_for_timeout(100)
+
+    assert page.locator("#result").is_hidden()
+    assert page.locator("#intro-copy").is_visible()
+    assert submit.inner_text() == "Analisar documento"
+    assert "secondary" not in (submit.get_attribute("class") or "")
+    assert page.locator(".field-card").count() == 0
+    assert page.locator("#raw-text").inner_text() == ""
+    assert page.evaluate("() => document.body.classList.contains('has-extracted')") is False
+    assert page.evaluate("() => document.getElementById('document').value") == ""
+
+
+def test_clear_via_keyboard_shortcut(page_at_home: Page) -> None:
+    page = page_at_home
+    answer(page)
+    upload(page)
+    analyze(page)
+
+    assert page.locator("#result").is_visible()
+    page.keyboard.press("Alt+l")
+    page.wait_for_timeout(100)
+
+    assert page.locator("#result").is_hidden()
+    assert page.locator("#intro-copy").is_visible()
+    assert page.locator("#submit").inner_text() == "Analisar documento"
 

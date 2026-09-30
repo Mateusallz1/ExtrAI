@@ -276,3 +276,13 @@ def test_extracted_fields_support_click_to_copy_and_visual_feedback() -> None:
     assert "copyFieldValue" in SCRIPT
     assert 'fieldValue.addEventListener("click"' in SCRIPT
     assert 'fieldValue.classList.add("field-copied")' in SCRIPT
+
+
+def test_submit_button_adapts_to_clear_and_shortcut_is_configured() -> None:
+    assert 'id="submit"' in MARKUP
+    assert "function setSubmitMode(mode)" in SCRIPT
+    assert "function clearExtraction()" in SCRIPT
+    assert 'submit.dataset.mode === "clear"' in SCRIPT
+    assert 'setSubmitMode("clear");' in SCRIPT
+    assert 'setSubmitMode("extract");' in SCRIPT
+    assert 'e.altKey && e.key.toLowerCase() === "l"' in SCRIPT
