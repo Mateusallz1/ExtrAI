@@ -11,8 +11,9 @@ systems.
 ```text
 browser
   -> FastAPI /api/extract
-  -> local upload validation
   -> DocumentExtractor
+  -> disposable local document worker (in-memory IPC, cancel/timeout)
+  -> upload validation and bounded PDF/image preparation
   -> primary embedded image as support, when present
   -> PydanticAI Agent
   -> configured multimodal provider
@@ -23,8 +24,14 @@ browser
 ## Layers
 
 - `main.py`: HTTP runtime, health checks, and error mappings.
-- `extractor.py`: upload handling, PDF metadata, embedded images, multimodal
-  input, and API contract.
+- `document_processing.py`: local upload validation, PDF metadata, bounded
+  embedded-image preparation, and the disposable processing worker.
+- `privacy_logging.py`: suppress dependency diagnostics that can expose document
+  content before parsing.
+- `extractor.py`: multimodal input, lazy model fallback, shared request budgets,
+  and API contract. Upload/preview helpers are re-exported for compatibility.
+- `provider_usage.py`: count calls at the model boundary and accumulate only usage
+  metadata across retries and fallbacks.
 - `models.py`: Pydantic models and semantic field validations.
 - `prompts.py`: extraction instructions and rules preventing data hallucination.
 - `static/index.html`, `static/app.css`, `static/app.js`: local interface, zoomed

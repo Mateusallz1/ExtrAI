@@ -87,10 +87,10 @@ body.has-extracted .layout > .panel { overflow: auto; }
 .zoom-btn { min-width: 32px; height: 28px; padding: 0 8px; font-size: 0.8125rem; font-weight: 600; line-height: 1; }
 .focus-toolbar button { min-width: 32px; padding: 0 10px; }
 .focus-image-container { height: clamp(260px, 42vh, 520px); overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); text-align: center; cursor: grab; user-select: none; touch-action: none; position: relative; }
-.preview-panel { display: flex; flex-direction: column; overflow: hidden !important; }
+.preview-panel { display: flex; flex-direction: column; overflow: auto; }
 .preview-panel .preview { flex: 1 1 0; min-height: 120px; max-height: none; height: 100%; }
-.preview-panel .focus-panel { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; margin-top: 0; gap: 8px; }
-.preview-panel .focus-image-container { flex: 1 1 0; min-height: 120px; height: auto !important; }
+.preview-panel .focus-panel { flex: 1 1 0; min-height: min-content; display: flex; flex-direction: column; margin-top: 0; gap: 8px; }
+.preview-panel .focus-image-container { flex: 1 1 0; min-height: 120px; }
 .preview-panel .warning-box { margin: 8px 0 0; padding: 8px 12px; }
 .preview-panel .focus-empty { margin: 8px 0 0; }
 .focus-image-container.panning { cursor: grabbing; }
@@ -140,6 +140,7 @@ input { width: 100%; box-sizing: border-box; border: 1px solid var(--input); bor
   body.has-extracted .layout { height: auto; }
   .layout { grid-template-columns: 1fr; height: auto; }
   .layout > .panel { overflow: visible; }
+  .preview-panel .focus-panel, .preview-panel .focus-image-container { flex: 0 0 auto; }
 }
 @media (max-width: 520px) {
   .upload { grid-template-columns: 1fr; }

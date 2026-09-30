@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 import json
+from io import StringIO
+from pathlib import Path
 
 import pytest
 
@@ -300,6 +303,72 @@ def test_preview_panel_has_no_inner_scrollbar(page_at_home: Page) -> None:
     assert scroll_height <= client_height
 
 
+def test_mobile_preview_fits_the_entire_card_at_initial_zoom(page_at_home: Page) -> None:
+    page = page_at_home
+    page.set_viewport_size({"width": 390, "height": 844})
+    card_png = page.evaluate(
+        """() => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 1000;
+          canvas.height = 650;
+          return canvas.toDataURL('image/png');
+        }"""
+    )
+    body = {
+        **RESULT,
+        "warnings": [],
+        "previews": [{"label": "Frente", "primary": True, "src": card_png}],
+    }
+    answer(page, body)
+    upload(page)
+    analyze(page)
+    page.wait_for_function('document.querySelector("#focus-image").naturalWidth === 1000')
+
+    bounds = page.locator("#focus-image-container").evaluate(
+        """container => {
+          const image = container.querySelector('img');
+          const outer = container.getBoundingClientRect();
+          const inner = image.getBoundingClientRect();
+          return {outer: outer.toJSON(), inner: inner.toJSON(), transform: image.style.transform};
+        }"""
+    )
+    assert "scale(1)" in bounds["transform"]
+    assert bounds["inner"]["top"] >= bounds["outer"]["top"]
+    assert bounds["inner"]["bottom"] <= bounds["outer"]["bottom"]
+    assert bounds["inner"]["left"] >= bounds["outer"]["left"]
+    assert bounds["inner"]["right"] <= bounds["outer"]["right"]
+
+
+def test_all_warnings_remain_reachable_in_a_short_desktop_viewport(
+    page_at_home: Page,
+) -> None:
+    page = page_at_home
+    page.set_viewport_size({"width": 1280, "height": 650})
+    body = {
+        **RESULT,
+        "warnings": [
+            f"Aviso sintético {index}: " + "Confira os dados do documento. " * 5
+            for index in range(8)
+        ],
+    }
+    answer(page, body)
+    upload(page)
+    analyze(page)
+    last_warning = page.locator("#warnings li").last
+    last_warning.scroll_into_view_if_needed()
+
+    bounds = last_warning.evaluate(
+        """warning => ({
+          warning: warning.getBoundingClientRect().toJSON(),
+          panel: document.querySelector('#preview-panel').getBoundingClientRect().toJSON(),
+          overflow: getComputedStyle(document.querySelector('#preview-panel')).overflowY,
+        })"""
+    )
+    assert bounds["overflow"] == "auto"
+    assert bounds["warning"]["top"] >= bounds["panel"]["top"]
+    assert bounds["warning"]["bottom"] <= bounds["panel"]["bottom"]
+
+
 def test_pasting_image_from_clipboard_populates_input(page_at_home: Page) -> None:
     page = page_at_home
     answer(page)
@@ -390,6 +459,42 @@ def test_field_dynamic_validation_flags_invalid_values(page_at_home: Page) -> No
     assert "field-invalid" not in (validity_field.get_attribute("class") or "")
 
 
+@pytest.mark.parametrize(
+    ("key", "value", "valid_value", "label"),
+    [
+        ("cpf", "123", "123.456.789-09", "CPF"),
+        ("birthDate", "31/02/20", "10/02/1990", "Data de nascimento"),
+        ("validity", "15/12", "15/12/2030", "Validade"),
+    ],
+)
+def test_incomplete_manual_value_is_flagged_after_blur_and_export_warns(
+    page_at_home: Page, key: str, value: str, valid_value: str, label: str
+) -> None:
+    page = page_at_home
+    answer(page)
+    upload(page)
+    analyze(page)
+    field = page.locator(f'[data-field-label="{key}"] .field-value')
+    field.fill(value)
+    assert field.get_attribute("aria-invalid") == "false"
+    page.locator("#summary").click()
+    assert field.get_attribute("aria-invalid") == "true"
+    assert "inválido ou incompleto" in (field.get_attribute("title") or "")
+
+    with page.expect_download() as download_info:
+        page.click("#download-json")
+    download_path = download_info.value.path()
+    assert download_path is not None
+    data = json.loads(Path(download_path).read_text(encoding="utf-8"))
+    assert data["dados"][label] == value  # Manual overrides remain available for review.
+    assert "campos inválidos ou incompletos" in page.locator("#status").inner_text()
+
+    field.fill(valid_value)
+    page.locator("#summary").click()
+    assert field.get_attribute("aria-invalid") == "false"
+    assert "field-invalid" not in (field.get_attribute("class") or "")
+
+
 def test_download_json_and_csv_trigger_downloads(page_at_home: Page) -> None:
     page = page_at_home
     answer(page)
@@ -408,8 +513,6 @@ def test_download_json_and_csv_trigger_downloads(page_at_home: Page) -> None:
 
 
 def test_download_csv_sanitizes_multiline_fields(page_at_home: Page) -> None:
-    from pathlib import Path
-
     page = page_at_home
     body = {
         **RESULT,
@@ -434,6 +537,42 @@ def test_download_csv_sanitizes_multiline_fields(page_at_home: Page) -> None:
     csv_text = Path(csv_path).read_text(encoding="utf-8")
     assert "MARIA MAE / JOSE PAI" in csv_text
     assert "MARIA MAE\n" not in csv_text
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("=1+1", "'=1+1"),
+        ("+SUM(1;2)", "'+SUM(1;2)"),
+        ("-1+1", "'-1+1"),
+        ("@SUM(1,2)", "'@SUM(1,2)"),
+        ("  \t=1+1", "'=1+1"),
+        ("\x00\t=1+1", "'\x00\t=1+1"),
+        ("\x1f\x7f@SUM(1,2)", "'\x1f\x7f@SUM(1,2)"),
+        ('MARIA "TESTE"', 'MARIA "TESTE"'),
+    ],
+)
+def test_download_csv_exports_formula_prefixes_as_literal_text(
+    page_at_home: Page, value: str, expected: str
+) -> None:
+    page = page_at_home
+    body = {
+        **RESULT,
+        "fields": {**RESULT["fields"], "name": {"value": value, "label": "Nome"}},
+    }
+    answer(page, body)
+    upload(page)
+    analyze(page)
+
+    with page.expect_download() as download_info:
+        page.click("#download-csv")
+    download_path = download_info.value.path()
+    assert download_path is not None
+    exported = Path(download_path).read_text(encoding="utf-8-sig")
+    rows = list(csv.reader(StringIO(exported), delimiter=";"))
+    assert rows[0] == ["Campo", "Valor"]
+    assert rows[1] == ["Nome", expected]
+    assert all(len(row) == 2 for row in rows)
 
 
 def test_copy_core_copies_only_values_without_labels(page_at_home: Page) -> None:

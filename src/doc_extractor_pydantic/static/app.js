@@ -533,24 +533,23 @@ function isValidDate(str) {
   return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
 }
 
-function checkFieldValidity(key, text) {
+function checkFieldValidity(key, text, allowIncomplete = false) {
   if (!text || text === "Não identificado") return true;
   if (key === "cpf") {
     const digits = text.replace(/\D/g, "");
-    if (digits.length === 11) return isValidCpf(digits);
-    return true;
+    if (digits.length < 11 && allowIncomplete) return true;
+    return isValidCpf(digits);
   }
   if (key === "birthDate" || key === "issueDate" || key === "validity") {
-    if (text.trim().length >= 10) {
-      if (!isValidDate(text)) return false;
-      const [day, month, year] = text.trim().split("/").map(Number);
-      const now = new Date();
-      if ((key === "birthDate" || key === "issueDate") && new Date(year, month - 1, day) > now) {
-        return false;
-      }
-      if (key === "validity" && year > now.getFullYear() + 15) {
-        return false;
-      }
+    if (text.trim().length < 10 && allowIncomplete) return true;
+    if (!isValidDate(text)) return false;
+    const [day, month, year] = text.trim().split("/").map(Number);
+    const now = new Date();
+    if ((key === "birthDate" || key === "issueDate") && new Date(year, month - 1, day) > now) {
+      return false;
+    }
+    if (key === "validity" && year > now.getFullYear() + 15) {
+      return false;
     }
     return true;
   }
@@ -583,12 +582,15 @@ function renderFieldCard(key, value) {
   fieldValue.setAttribute("role", "textbox");
   fieldValue.setAttribute("aria-label", value.label);
   fieldValue.textContent = value.value || "Não identificado";
-  if (value.value) {
-    fieldValue.title = "Clique para copiar ou editar";
+  function updateValidity(text, allowIncomplete = false) {
+    const valid = checkFieldValidity(key, text, allowIncomplete);
+    fieldValue.classList.toggle("field-invalid", !valid);
+    fieldValue.setAttribute("aria-invalid", String(!valid));
+    fieldValue.title = !valid
+      ? `${value.label} inválido ou incompleto. Confira o documento antes de usar.`
+      : text && text !== "Não identificado" ? "Clique para copiar ou editar" : "";
   }
-  if (value.value && !checkFieldValidity(key, value.value)) {
-    fieldValue.classList.add("field-invalid");
-  }
+  updateValidity(value.value || "");
 
   const control = document.createElement("div");
   control.className = "field-control";
@@ -603,7 +605,7 @@ function renderFieldCard(key, value) {
   fieldValue.addEventListener("focus", () => {
     if (card.dataset.found === "false") {
       fieldValue.textContent = "";
-      fieldValue.classList.remove("field-invalid");
+      updateValidity("");
     }
   });
 
@@ -613,10 +615,9 @@ function renderFieldCard(key, value) {
       fieldValue.textContent = "Não identificado";
       card.dataset.found = "false";
       copyButton.disabled = true;
-      fieldValue.title = "";
-      fieldValue.classList.remove("field-invalid");
+      updateValidity("");
     } else {
-      fieldValue.classList.toggle("field-invalid", !checkFieldValidity(key, text));
+      updateValidity(text);
     }
   });
 
@@ -625,8 +626,7 @@ function renderFieldCard(key, value) {
     const isIdentified = Boolean(text && text !== "Não identificado");
     card.dataset.found = isIdentified ? "true" : "false";
     copyButton.disabled = !isIdentified;
-    fieldValue.title = isIdentified ? "Clique para copiar ou editar" : "";
-    fieldValue.classList.toggle("field-invalid", !checkFieldValidity(key, text));
+    updateValidity(text, true);
   });
 
   let copyFeedbackTimer = null;
@@ -764,6 +764,14 @@ function downloadFile(content, filename, mimeType) {
   URL.revokeObjectURL(url);
 }
 
+function reportDownload(message, items) {
+  const invalid = items.some((item) => !checkFieldValidity(item.key, item.value));
+  status.className = invalid ? "status error" : "status";
+  status.textContent = invalid
+    ? `${message} Há campos inválidos ou incompletos; confira o documento antes de usar.`
+    : message;
+}
+
 document.querySelector("#download-json")?.addEventListener("click", () => {
   if (!lastData) return;
   const items = getExtractedItems();
@@ -772,21 +780,26 @@ document.querySelector("#download-json")?.addEventListener("click", () => {
     dados: Object.fromEntries(items.map((it) => [it.label, it.value])),
   };
   downloadFile(JSON.stringify(obj, null, 2), `extracao-${lastData.kind || "documento"}.json`, "application/json");
-  status.textContent = "Arquivo JSON baixado.";
+  reportDownload("Arquivo JSON baixado.", items);
 });
+
+function escapeCsvCell(value) {
+  // CSV quoting preserves columns, but spreadsheet formulas must remain literal text.
+  const literal = /^[\s\u0000-\u001f\u007f-\u009f]*[=+\-@]/.test(value) ? `'${value}` : value;
+  const singleLine = literal.replace(/\r\n|\r|\n/g, " / ");
+  return `"${singleLine.replace(/"/g, '""')}"`;
+}
 
 document.querySelector("#download-csv")?.addEventListener("click", () => {
   if (!lastData) return;
   const items = getExtractedItems();
   const lines = [["Campo", "Valor"]];
   for (const it of items) {
-    const cleanVal = it.value.replace(/\r?\n/g, " / ");
-    const escapedVal = `"${cleanVal.replace(/"/g, '""')}"`;
-    lines.push([`"${it.label.replace(/"/g, '""')}"`, escapedVal]);
+    lines.push([escapeCsvCell(it.label), escapeCsvCell(it.value)]);
   }
   const csvText = "\uFEFF" + lines.map((r) => r.join(";")).join("\r\n");
   downloadFile(csvText, `extracao-${lastData.kind || "documento"}.csv`, "text/csv;charset=utf-8;");
-  status.textContent = "Arquivo CSV baixado.";
+  reportDownload("Arquivo CSV baixado.", items);
 });
 
 window.addEventListener("keydown", (e) => {

@@ -26,6 +26,10 @@ EXPECTED_FIELDS: dict[str, tuple[str, ...]] = {
 """Fields expected to be queried for each document type."""
 
 FIELD_TERMS: dict[str, tuple[str, ...]] = {
+    "name": ("nome",),
+    "cpf": ("cpf",),
+    "birth_date": ("nascimento",),
+    "issue_date": ("emissão", "emissao"),
     "registration": ("registro",),
     "category": ("categoria", "cat hab", "habilitação"),
     "validity": ("validade",),
@@ -44,6 +48,17 @@ def warning_applies(warning: str, kind: str) -> bool:
         return True
     lowered = warning.casefold()
     if kind == "rg" and any(term in lowered for term in ("registro geral", "registro civil")):
+        return True
+    # A mixed warning must retain the information about an applicable field.
+    # The text is unstructured: discarding its unrelated clause would risk changing
+    # its meaning, so only warnings exclusively about inapplicable fields are dropped.
+    if any(
+        field in expected and any(
+            re.search(rf"(?<!\w){re.escape(term)}(?!\w)", lowered)
+            for term in terms
+        )
+        for field, terms in FIELD_TERMS.items()
+    ):
         return True
     return not any(
         field not in expected and any(term in lowered for term in terms)
