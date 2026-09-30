@@ -1,8 +1,11 @@
 import asyncio
 import json
 import logging
+from io import BytesIO
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.datastructures import UploadFile
 
 from doc_extractor_pydantic import main as main_module
 from doc_extractor_pydantic.limits import MULTIPART_OVERHEAD_BYTES
@@ -364,15 +367,189 @@ def test_client_disconnect_cancels_extraction_and_releases_slot(monkeypatch) -> 
             await extraction_started.wait()
             return {"type": "http.disconnect"}
 
+        sent = []
+
         async def send(message):
-            pass
+            sent.append(message)
 
         await main_module.app(scope, receive, send)
+        response = next(message for message in sent if message["type"] == "http.response.start")
+        assert response["status"] == 499
+        assert dict(response["headers"])[b"cache-control"] == b"no-store"
 
     assert main_module.extractions.active == 0
     asyncio.run(run())
     assert extraction_cancelled.is_set()
     assert main_module.extractions.active == 0
+
+
+def test_external_asgi_cancellation_drains_extraction_and_disconnect_watcher(monkeypatch) -> None:
+    async def run() -> None:
+        extraction_started = asyncio.Event()
+        extraction_finished = asyncio.Event()
+
+        class HangingExtractor:
+            async def extract(self, **kwargs) -> dict:
+                extraction_started.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    await asyncio.sleep(0)
+                    extraction_finished.set()
+
+        monkeypatch.setattr(main_module, "extractor", HangingExtractor())
+        boundary = "synthetic-boundary"
+        body = (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="document"; filename="test.png"\r\n'
+            "Content-Type: image/png\r\n\r\n"
+            "\x89PNG\r\n\x1a\nsynthetic\r\n"
+            f"--{boundary}--\r\n"
+        ).encode("latin-1")
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/extract",
+            "query_string": b"",
+            "headers": [
+                (b"host", b"127.0.0.1:8788"),
+                (b"content-type", f"multipart/form-data; boundary={boundary}".encode()),
+            ],
+            "client": ("127.0.0.1", 50000),
+        }
+        sent_body = False
+
+        async def receive():
+            nonlocal sent_body
+            if not sent_body:
+                sent_body = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            await asyncio.Event().wait()
+
+        async def send(message):
+            pass
+
+        baseline_tasks = asyncio.all_tasks()
+        request_task = asyncio.create_task(main_module.app(scope, receive, send))
+        try:
+            await asyncio.wait_for(extraction_started.wait(), timeout=1)
+            request_task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(request_task, timeout=1)
+            assert extraction_finished.is_set()
+            assert main_module.extractions.active == 0
+            assert asyncio.all_tasks() == baseline_tasks
+        finally:
+            # A failing regression must not leave tasks alive until asyncio.run exits.
+            leaked = asyncio.all_tasks() - baseline_tasks
+            for task in leaked:
+                task.cancel()
+            await asyncio.gather(*leaked, return_exceptions=True)
+
+    asyncio.run(run())
+
+
+def test_repeated_cancellation_waits_for_cleanup_before_releasing_slot(monkeypatch) -> None:
+    async def run() -> None:
+        extraction_started = asyncio.Event()
+        cleanup_started = asyncio.Event()
+        release_cleanup = asyncio.Event()
+        extraction_finished = asyncio.Event()
+        watcher_finished = asyncio.Event()
+
+        class HangingExtractor:
+            async def extract(self, **kwargs) -> dict:
+                extraction_started.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    cleanup_started.set()
+                    await release_cleanup.wait()
+                    extraction_finished.set()
+
+        class WaitingRequest:
+            async def receive(self):
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    watcher_finished.set()
+
+        monkeypatch.setattr(main_module, "extractor", HangingExtractor())
+        document = UploadFile(file=BytesIO(b"synthetic"), filename="test.png")
+        request_task = asyncio.create_task(main_module.extract(WaitingRequest(), document))
+        try:
+            await asyncio.wait_for(extraction_started.wait(), timeout=1)
+            request_task.cancel()
+            await asyncio.wait_for(cleanup_started.wait(), timeout=1)
+            request_task.cancel()
+            await asyncio.sleep(0)
+            assert not request_task.done()
+            assert main_module.extractions.active == 1
+            assert not document.file.closed
+            release_cleanup.set()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(request_task, timeout=1)
+            assert extraction_finished.is_set()
+            assert watcher_finished.is_set()
+            assert document.file.closed
+            assert main_module.extractions.active == 0
+        finally:
+            release_cleanup.set()
+            request_task.cancel()
+            await asyncio.gather(request_task, return_exceptions=True)
+
+    asyncio.run(run())
+
+
+def test_upload_read_failure_closes_document_without_exposing_error(monkeypatch, caplog) -> None:
+    uploads = []
+
+    async def failing_read(document, size):
+        uploads.append(document)
+        raise OSError("private file name and document data")
+
+    fake = FakeExtractor()
+    monkeypatch.setattr(main_module, "extractor", fake)
+    monkeypatch.setattr(UploadFile, "read", failing_read)
+    with caplog.at_level(logging.INFO):
+        response = client().post(
+            "/api/extract",
+            files={"document": ("test.png", b"synthetic", "image/png")},
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Não foi possível processar o documento."
+    assert response.headers["cache-control"] == "no-store"
+    assert "private file name" not in caplog.text
+    assert fake.calls == []
+    assert len(uploads) == 1
+    assert uploads[0].file.closed
+    assert main_module.extractions.active == 0
+
+
+def test_cancelled_upload_read_closes_document_and_releases_slot(monkeypatch) -> None:
+    async def run() -> None:
+        read_started = asyncio.Event()
+
+        async def hanging_read(document, size):
+            read_started.set()
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(UploadFile, "read", hanging_read)
+        document = UploadFile(file=BytesIO(b"synthetic"), filename="test.png")
+        request_task = asyncio.create_task(main_module.extract(object(), document))
+        try:
+            await asyncio.wait_for(read_started.wait(), timeout=1)
+            request_task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(request_task, timeout=1)
+            assert document.file.closed
+            assert main_module.extractions.active == 0
+        finally:
+            request_task.cancel()
+            await asyncio.gather(request_task, return_exceptions=True)
+
+    asyncio.run(run())
 
 
 def test_app_title_is_doclume() -> None:

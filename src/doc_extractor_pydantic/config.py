@@ -7,6 +7,14 @@ from dataclasses import dataclass
 DEFAULT_MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 DEFAULT_MODEL = "google:gemini-3.5-flash-lite"
 DEFAULT_FALLBACK_MODELS = ("google:gemini-3-flash-preview",)
+SUPPORTED_PROVIDERS = {
+    "google", "google-cloud", "google-gla", "google-vertex", "openai", "openai-responses",
+}
+
+
+def is_supported_model(model: str) -> bool:
+    provider, separator, name = model.partition(":")
+    return bool(separator and name.strip() and provider.lower() in SUPPORTED_PROVIDERS)
 
 
 def is_loopback(host: str | None) -> bool:
@@ -57,23 +65,23 @@ class Settings:
         )
 
     def is_provider_configured(self, model: str) -> bool:
+        if not is_supported_model(model):
+            return False
         provider = model.split(":", maxsplit=1)[0].lower()
         if provider in {"openai", "openai-responses"}:
             return bool(os.getenv("OPENAI_API_KEY"))
-        if provider == "anthropic":
-            return bool(os.getenv("ANTHROPIC_API_KEY"))
         if provider in {"google", "google-cloud", "google-gla", "google-vertex"}:
             return bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
-        return True
+        return False
 
     def provider_configured(self) -> bool:
         return self.is_provider_configured(self.model)
 
     def configured_fallback_models(self) -> tuple[str, ...]:
-        return tuple(
+        return tuple(dict.fromkeys(
             m for m in self.fallback_models
             if m != self.model and self.is_provider_configured(m)
-        )
+        ))
 
 
 def _positive_int(value: str | None, fallback: int) -> int:

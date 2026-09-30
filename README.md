@@ -2,7 +2,7 @@
 
 Extrator inteligente, privativo e auditável de documentos de identificação brasileiros (**RG** e **CNH**).
 
-O **DocLume** processa imagens e arquivos PDF (incluindo documentos escaneados e multifolhas), identifica automaticamente o tipo do documento e extrai dados cadastrais estruturados com alta precisão, combinando visão computacional local, validação semântica determinística e inteligência artificial multimodal via [PydanticAI](https://ai.pydantic.dev/).
+O **DocLume** processa imagens e arquivos PDF (incluindo documentos escaneados e multifolhas), identifica o tipo do documento e extrai dados cadastrais estruturados para conferência humana, combinando processamento local, validação semântica determinística e inteligência artificial multimodal via [PydanticAI](https://ai.pydantic.dev/). Não há avaliação automatizada de acurácia em documentos reais.
 
 ---
 
@@ -11,19 +11,19 @@ O **DocLume** processa imagens e arquivos PDF (incluindo documentos escaneados e
 ### 1. Operadores e Equipes de Negócios (KYC, RH, Onboarding)
 - **Elimine a digitação manual**: extraia nome, CPF, datas e número de registro em segundos.
 - **Fluxo ágil de trabalho**: cole imagens diretamente da área de transferência com `Ctrl + V`, use o botão **"Copiar essenciais"** para colar em formulários com um clique ou exporte relatórios em **CSV** e **JSON**.
-- **Conferência visual facilitada**: pré-visualize o documento original com zoom fluido (1x a 5x), rotação em 90° e arrasto interativo lado a lado com os dados extraídos.
+- **Conferência visual facilitada**: pré-visualize imagens do documento com zoom fluido (0,5x a 5x), rotação em 90° e arrasto interativo lado a lado com os dados extraídos.
 - **Validação imediata**: campos com potenciais inconsistências de digitação ou formatação recebem alertas visuais em tempo real na tela.
 
 ### 2. Gestores de Segurança, Compliance e DPO (LGPD)
-- **Zero armazenamento em disco ou banco de dados**: os bytes do documento são processados em memória volátil e imediatamente descartados após a resposta.
+- **Sem persistência documental própria**: processamento local e comunicação com o worker ocorrem em memória; o parser multipart pode usar spool temporário, fechado ao terminar a requisição. O conteúdo é enviado ao provider, sujeito às políticas dele.
 - **Logs estritamente anônimos (Zero PII)**: nenhum nome, CPF, foto, documento ou texto extraído é gravado em arquivos de log.
 - **Isolamento de rede**: o servidor roda exclusivamente em *loopback* (`127.0.0.1`), bloqueando chamadas de hosts externos ou de origens cruzadas não autorizadas.
-- **Custo operacional quase nulo**: cada documento processado consome cerca de 1.000 a 1.500 tokens no modelo `google:gemini-3.5-flash-lite`, custando frações insignificantes de centavo e se enquadrando perfeitamente no *free tier* ou termos corporativos do Google Cloud.
+- **Consumo acompanhado**: a API acumula invocações e tokens informados nas respostas, incluindo retries e fallback. Falhas sem métricas não permitem estimar todos os tokens ou a cobrança real; custos e termos dependem do provider contratado.
 
 ### 3. Desenvolvedores e Engenheiros de Software
 - **Tipagem estrita e contratos previsíveis**: construído com **FastAPI** e **Pydantic v2**, garantindo validação de schema rígida na entrada e saída da API.
-- **IA com limites operacionais (PydanticAI)**: controle estrito de retentativas (`PROVIDER_RETRIES`), orçamentos de tempo (`EXTRACTION_TIMEOUT_SECONDS`) e limites de tokens de resposta (`UsageLimits`).
-- **Validação determinística no backend**: validação matemática do dígito verificador do CPF, conferência de calendário gregoriano para datas e checagem cronológica (ex.: data de emissão não pode ser anterior ao nascimento). O modelo **nunca** tenta adivinhar ou substituir valores ausentes.
+- **IA com limites operacionais (PydanticAI)**: até três invocações por modelo, compartilhadas entre retries de saída e transporte; 15 segundos para processamento local em processo cancelável e 90 segundos para a análise, incluindo preparação e provider.
+- **Validação determinística no backend**: validação matemática do CPF, conferência de calendário e checagem cronológica. As instruções proíbem adivinhar valores; o backend descarta valores inválidos e apresenta avisos para revisão.
 - **Frontend sem dependências pesadas**: interface construída em HTML5, Vanilla JS e CSS puro, compatível nativamente com Modo Escuro e com Content Security Policy (CSP) rigorosa (sem `'unsafe-inline'`).
 - **Suíte de testes sem custo**: 100% dos testes unitários e de integração E2E com Playwright rodam localmente com mocks seguros, sem fazer chamadas externas nem gastar sua chave de API.
 
@@ -33,11 +33,11 @@ O **DocLume** processa imagens e arquivos PDF (incluindo documentos escaneados e
 
 | Recurso | Descrição |
 | :--- | :--- |
-| **Formatos Suportados** | `.pdf`, `.jpg`, `.jpeg`, `.png` e `.webp` (até 15 MB e até 20 páginas). |
+| **Formatos Suportados** | `.pdf`, `.jpg`, `.jpeg`, `.png` e `.webp` (até 15 MB; PDF até 20 páginas; imagens estáticas e legíveis até 40 MP). |
 | **Área de Transferência** | Pressione `Ctrl + V` em qualquer ponto da tela para colar uma imagem ou captura de tela. |
 | **Copiar Essenciais** | Copia instantaneamente Nome, CPF, Data de Nascimento e Registro para colar em cadastros. |
 | **Exportação CSV & JSON** | Baixe a extração estruturada diretamente no navegador com 1 clique. |
-| **Visualizador Interativo** | Zoom (1x a 5x), movimentação por arrasto (pan), roda do mouse e rotação em 90°. |
+| **Visualizador Interativo** | Zoom (0,5x a 5x), movimentação por arrasto (pan), roda do mouse e rotação em 90°. |
 | **Validação em Tempo Real** | Alerta visual de borda vermelha se um CPF ou data editada estiver fora dos padrões oficiais. |
 | **Detecção de Miniaturas** | Em PDFs de RG/CNH, extrai e amplia automaticamente as imagens embutidas (frente e verso). |
 | **Modo Escuro NATIVO** | Adaptação automática à preferência do sistema operacional (`prefers-color-scheme`). |
@@ -57,8 +57,8 @@ O **DocLume** processa imagens e arquivos PDF (incluindo documentos escaneados e
         │
         ▼
 [DocumentExtractor & PyPDF]
-  ├── Validação de assinatura mágica e limites (páginas, bytes)
-  └── Extração local de imagens incorporadas (frente/verso para foco visual)
+  ├── Worker cancelável em memória: validação de legibilidade e limites
+  └── Preparação de XObjects selecionados, com parsing incremental do PDF
         │
         ▼
 [PydanticAI Agent]
@@ -143,7 +143,7 @@ Recebe o documento via formulário `multipart/form-data` no campo `document`.
   "pages": 1,
   "fields": {
     "name": { "value": "MARIA DA SILVA", "confidence": "high", "label": "Nome" },
-    "cpf": { "value": "123.456.789-00", "confidence": "high", "label": "CPF" },
+    "cpf": { "value": "123.456.789-09", "confidence": "high", "label": "CPF" },
     "birthDate": { "value": "15/05/1990", "confidence": "high", "label": "Data de nascimento" },
     "registration": { "value": "01234567890", "confidence": "medium", "label": "Registro" },
     "category": { "value": "B", "confidence": "high", "label": "Categoria" }

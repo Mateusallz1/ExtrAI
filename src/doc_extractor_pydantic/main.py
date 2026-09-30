@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import anyio
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -25,8 +26,10 @@ from .limits import (
     MULTIPART_OVERHEAD_BYTES,
     upload_limit_message,
 )
+from .privacy_logging import configure_sensitive_dependency_logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+configure_sensitive_dependency_logging()
 logger = logging.getLogger(__name__)
 
 settings = Settings.from_env()
@@ -272,17 +275,46 @@ async def health() -> dict[str, object]:
     }
 
 
+async def _cleanup_extraction(document: UploadFile, tasks: list[asyncio.Task[object]]) -> None:
+    """Drain children and close the upload even when the HTTP task is cancelled."""
+
+    for task in tasks:
+        if not task.done():
+            task.cancel()
+
+    async def cleanup() -> None:
+        try:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            await document.close()
+
+    cleanup_task = asyncio.create_task(cleanup())
+    cancellation: asyncio.CancelledError | None = None
+    # Starlette uses AnyIO cancellation scopes; shield their repeated cancellation
+    # as well as direct asyncio cancellation while the child cleanup finishes.
+    with anyio.CancelScope(shield=True):
+        while not cleanup_task.done():
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError as error:
+                cancellation = error
+        cleanup_task.result()
+    if cancellation is not None:
+        raise cancellation
+
+
 @app.post("/api/extract")
 async def extract(request: Request, document: UploadFile = File(...)) -> dict[str, object]:
     if extractions.full():
-        await document.close()
+        await _cleanup_extraction(document, [])
         raise HTTPException(
             status_code=429,
             detail="Há outra análise em andamento. Tente novamente em instantes.",
         )
     with extractions:
-        content = await document.read(settings.max_upload_bytes + 1)
+        tasks: list[asyncio.Task[object]] = []
         try:
+            content = await document.read(settings.max_upload_bytes + 1)
             extract_task = asyncio.create_task(
                 extractor.extract(
                     file_name=document.filename or "",
@@ -290,6 +322,7 @@ async def extract(request: Request, document: UploadFile = File(...)) -> dict[st
                     content_type=document.content_type,
                 )
             )
+            tasks.append(extract_task)
 
             async def wait_disconnect() -> None:
                 while True:
@@ -298,16 +331,11 @@ async def extract(request: Request, document: UploadFile = File(...)) -> dict[st
                         return
 
             disconnect_task = asyncio.create_task(wait_disconnect())
-            done, pending = await asyncio.wait(
+            tasks.append(disconnect_task)
+            done, _ = await asyncio.wait(
                 [extract_task, disconnect_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
 
             if disconnect_task in done:
                 logger.info("document extraction aborted by client")
@@ -344,7 +372,7 @@ async def extract(request: Request, document: UploadFile = File(...)) -> dict[st
                 detail="Não foi possível processar o documento.",
             ) from None
         finally:
-            await document.close()
+            await _cleanup_extraction(document, tasks)
 
     usage_info = result.get("usage") or {}
     logger.info(

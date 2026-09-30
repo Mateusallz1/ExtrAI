@@ -20,6 +20,12 @@ MAX_PREVIEW_CANDIDATES = 24
 MAX_PREVIEW_PIXELS = 40_000_000
 """Maximum allowed pixels in an embedded image, checked without decompression."""
 
+MAX_IMAGE_PIXELS = 40_000_000
+"""Maximum pixels accepted in an uploaded image before loading its pixels."""
+
+LOCAL_PROCESSING_TIMEOUT_SECONDS = 15.0
+"""Wall-clock budget for the disposable document-processing worker."""
+
 MAX_CONTENT_STREAM_BYTES = 8 * 1024 * 1024
 """Maximum decompressed bytes accepted in a single page content stream."""
 
@@ -33,13 +39,13 @@ MAX_CONCURRENT_EXTRACTIONS = 2
 """Maximum concurrent extraction requests handled by this server process."""
 
 EXTRACTION_TIMEOUT_SECONDS = 90.0
-"""Total time budget allowed for provider responses, including retries."""
+"""Total time budget for local processing and provider responses, including retries."""
 
 MODEL_TIMEOUT_SECONDS = 45.0
 """Time budget allowed for a single model attempt before failing over to a fallback model."""
 
 PROVIDER_RETRIES = 2
-"""Additional attempts for invalid structured output or transient provider failure."""
+"""Additional requests per model, shared by output retries and transient retries."""
 
 PROVIDER_BACKOFF_SECONDS = 2.0
 """Initial exponential backoff delay before retrying transient provider failures."""

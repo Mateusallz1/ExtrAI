@@ -10,6 +10,7 @@ from pydantic_ai.exceptions import ModelHTTPError
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, NameObject
 
+import doc_extractor_pydantic.document_processing as processing_module
 import doc_extractor_pydantic.extractor as extractor_module
 from doc_extractor_pydantic.config import Settings
 from doc_extractor_pydantic.extractor import (
@@ -30,8 +31,31 @@ from doc_extractor_pydantic.limits import (
 from doc_extractor_pydantic.models import DocumentExtraction, ExtractedField
 from doc_extractor_pydantic.prompts import EXTRACTION_INSTRUCTIONS
 
-PNG = b"\x89PNG\r\n\x1a\n" + b"test"
-JPEG = b"\xff\xd8\xff" + b"test"
+
+def make_image(format_name: str) -> bytes:
+    stream = BytesIO()
+    with Image.new("RGB", (10, 10), (100, 120, 200)) as image:
+        image.save(stream, format=format_name)
+    return stream.getvalue()
+
+
+PNG = make_image("PNG")
+JPEG = make_image("JPEG")
+
+
+@pytest.fixture(autouse=True)
+def inline_document_processing(monkeypatch):
+    """Agent tests isolate provider behavior; worker lifecycle has its own tests."""
+
+    async def process_inline(file_name, content, max_upload_bytes, content_type=None):
+        document = extractor_module.validate_upload(file_name, content, max_upload_bytes)
+        return processing_module.ProcessedDocument(
+            media_type=media_type_for(file_name, content_type),
+            pages=len(document.pages) if document is not None else 1,
+            previews=extractor_module.extract_pdf_previews(document),
+        )
+
+    monkeypatch.setattr(extractor_module, "process_document_async", process_inline)
 
 
 def make_pdf(pages: int = 1) -> bytes:
@@ -152,13 +176,13 @@ def test_validation_rejects_password_protected_pdf() -> None:
 
 def test_extraction_parses_the_pdf_only_once(monkeypatch) -> None:
     readers = []
-    original_reader = extractor_module.PdfReader
+    original_reader = processing_module.PdfReader
 
     def counting_reader(*args, **kwargs):
         readers.append(1)
         return original_reader(*args, **kwargs)
 
-    monkeypatch.setattr(extractor_module, "PdfReader", counting_reader)
+    monkeypatch.setattr(processing_module, "PdfReader", counting_reader)
     asyncio.run(
         DocumentExtractor(settings=Settings(model="test:model"), agent=FakeAgent()).extract(
             "doc.pdf", make_image_pdf()
@@ -170,13 +194,13 @@ def test_extraction_parses_the_pdf_only_once(monkeypatch) -> None:
 
 def test_previews_stop_at_the_scan_and_encode_limits(monkeypatch) -> None:
     encoded = []
-    original_encode = extractor_module._encode_preview
+    original_encode = processing_module._encode_preview
 
     def counting_encode(document, candidate):
         encoded.append(candidate["page"])
         return original_encode(document, candidate)
 
-    monkeypatch.setattr(extractor_module, "_encode_preview", counting_encode)
+    monkeypatch.setattr(processing_module, "_encode_preview", counting_encode)
     document = validate_upload("doc.pdf", make_image_pdf(pages=MAX_PREVIEW_SCAN_PAGES + 2), 10**7)
     previews = extract_pdf_previews(document)
 

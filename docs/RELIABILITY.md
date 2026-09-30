@@ -5,13 +5,13 @@
 - Host local: `127.0.0.1`.
 - Porta padrão: `8788`.
 - Configuração: `.env` carregado pelo comando do Uvicorn.
-- Entradas: PDF, JPG, JPEG e PNG até 15 MB.
+- Entradas: PDF, JPG, JPEG, PNG e WebP até 15 MB; imagens estáticas e legíveis.
 - Resultado: sempre sujeito à revisão humana.
 
 ## Limites de consumo
 
-Os limites ficam em `limits.py` e são aplicados antes de qualquer trabalho caro
-sobre o documento.
+Os limites ficam em `limits.py`. Tamanho/pixels são verificados antes da leitura
+de pixels; parsing/decodificação roda em processo descartável com prazo próprio.
 
 | Limite | Valor | Onde age |
 | --- | --- | --- |
@@ -21,19 +21,34 @@ sobre o documento.
 | Páginas percorridas por prévia | 4 | Varredura de imagens incorporadas |
 | Candidatas a detalhe | 24 | Varredura de imagens incorporadas |
 | Pixels por imagem incorporada | 40 MP | Lido do `/Width` e `/Height` declarados |
+| Pixels por imagem enviada | 40 MP | Antes da verificação/carregamento com Pillow |
 | Content stream por página | 8 MB descomprimidos | Antes de interpretar os operadores |
-| Detalhes retornados | 4 | Corte antes de decodificar e codificar em base64 |
+| Operações do content stream | 10.000 | Parser incremental, antes de ler a próxima operação |
+| Tentativas de prévia | 4 | Corte antes de decodificar e codificar em base64 |
 | Análises simultâneas | 2 | `/api/extract`, com `429` acima disso |
-| Tempo de resposta do provedor | 90 s | `asyncio.timeout` global na chamada do extrator, com `504` |
+| Processamento local | 15 s | Processo descartável, encerrado em timeout/cancelamento |
+| Tempo de análise | 90 s | Inclui processamento local e retries do provider, com `504` |
 | Tempo por modelo antes de fallback | 45 s | Failover para o próximo modelo quando houver reserva |
-| Tentativas do agente | 2 adicionais por modelo | Falhas transitórias (503/timeout) ou saída inválida |
+| Invocações de modelo | 3 por modelo | Um orçamento para retries internos e externos, inclusive falhas |
 
 O PDF é aberto uma única vez por requisição: `validate_upload` devolve o
 `PdfReader` já validado e o restante do fluxo reaproveita esse objeto.
 
-A seleção dos detalhes usa apenas metadados declarados no PDF. Só as quatro
-imagens escolhidas são decodificadas e convertidas em base64; um XObject
-desenhado várias vezes na mesma página vira um único detalhe.
+A seleção dos detalhes usa metadados declarados no PDF. Até quatro candidatos
+são tentados, incluindo falhas de decodificação; somente XObjects escolhidos e
+suas máscaras são decodificados. Imagens inline não são carregadas por enumeração
+da página. Um XObject desenhado várias vezes na mesma página vira um único detalhe.
+Dimensões reais de JPEG/JPX e dimensões das máscaras também são limitadas.
+
+O nome original fica no processo HTTP para validar a extensão; o worker recebe
+somente a extensão e o conteúdo, sem criar arquivos documentais. O parser multipart
+pode usar spool temporário, fechado ao terminar a requisição.
+
+`usage.requests` conta invocações no limite do modelo, inclusive falhas. Tokens
+somam somente o consumo informado nas respostas recebidas, inclusive respostas
+inválidas e fallback; não estimam tokens de falhas sem métricas nem cobrança real.
+O orçamento de três é por modelo: uma reserva configurada possui seu próprio
+orçamento, ainda sujeita ao prazo global.
 
 ## Dependências críticas
 
@@ -56,11 +71,25 @@ desenhado várias vezes na mesma página vira um único detalhe.
   automática. Ver [SECURITY.md](SECURITY.md).
 - Um único stream comprimido ainda pode ocupar até o teto do `pypdf` (75 MB) ao
   ser descomprimido, antes de o limite de 8 MB por página descartá-lo.
-- O retry do agente pode repetir uma chamada em caso de falha transitória (503/timeout) ou saída inválida,
-  até 2 vezes adicionais por modelo e dentro do tempo limite global.
+- Reservas são construídas quando necessárias; providers não suportados ou sem
+  credenciais são excluídos. Falha de construção de uma reserva não substitui o
+  erro original do primário nem impede um primário saudável de executar.
+- Retries de saída e transporte compartilham três invocações por modelo. Não há
+  reinício do orçamento a cada `agent.run()`.
+- Os retries internos do SDK OpenAI são desativados; o backoff e o orçamento ficam
+  sob controle da aplicação tanto em Chat quanto em Responses.
 - A extração de imagens incorporadas é uma melhoria de prévia; se falhar, o PDF
   não impede a análise, e a interface informa que não há detalhe ampliado.
 - A camada gratuita do provider pode apresentar variação de latência e políticas
   próprias de uso de dados.
+- O processo descartável limita tempo e isola CPU documental, mas não impõe um
+  teto rígido de memória do sistema operacional. Criação do processo e espera de
+  IPC/limpeza usam threads; o processamento documental ocorre no filho. Se o SO
+  demora a criar o processo, o cleanup precisa esperar essa criação terminar
+  antes de encerrá-lo; o event loop continua responsivo durante essa espera.
+- O parser incremental e o decoder de XObjects usam helpers internos do `pypdf`.
+  Atualizações dessa dependência exigem reexecutar as regressões de preparação.
+- Imagens animadas e cadeias de máscaras com mais de quatro imagens são recusadas
+  ou omitidas da prévia; não fazem parte do fluxo de identificação estática.
 
 Esses limites devem ser tratados antes de qualquer uso multiusuário ou produção.

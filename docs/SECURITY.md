@@ -16,6 +16,8 @@ autorização adequada.
 - Nunca colocar API keys no código, no Git, em testes ou na documentação.
 - Nunca enviar o nome do arquivo ao modelo.
 - Nunca registrar conteúdo, campos extraídos, imagens, PDFs ou nomes de arquivo.
+- O logger de `pypdf` é suprimido antes do parsing, pois seus diagnósticos podem
+  incluir tokens do conteúdo. Essa regra tem regressão com PDF sintético malformado.
 - Responder com `Cache-Control: no-store` e headers de proteção para evitar cache
   ou interpretação indevida no navegador.
 - Manter CSS e JavaScript em arquivos próprios: a CSP não usa `'unsafe-inline'`
@@ -28,6 +30,11 @@ autorização adequada.
 - Usar `textContent` na interface para dados vindos do modelo.
 - Manter a revisão humana antes de qualquer uso operacional.
 - Usar apenas arquivos sintéticos nos testes automatizados.
+- Parsing/decodificação local ocorre em um processo descartável. A comunicação é
+  feita por pipe em memória, passando somente extensão e bytes; timeout ou
+  cancelamento encerra o processo e fecha o pipe antes de liberar a vaga.
+- Arquivos CSV neutralizam conteúdo interpretável como fórmula. Isso não altera
+  o valor original exibido ou exportado em JSON.
 
 ## Exposição do endpoint
 
