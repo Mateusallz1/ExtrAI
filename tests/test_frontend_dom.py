@@ -140,7 +140,7 @@ def test_a_response_in_flight_cannot_land_on_a_new_selection(page_at_home: Page)
     assert page.locator("#result").is_hidden()
     assert page.locator(".field-card").count() == 0
     assert "Tudo certo" not in page.locator("#status").inner_text()
-    assert page.locator("#submit").is_disabled()
+    assert page.locator("#submit").inner_text() == "Parar análise"
 
     assert len(held) >= 2
     held[1].fulfill(
@@ -796,4 +796,69 @@ def test_clear_via_keyboard_shortcut(page_at_home: Page) -> None:
     assert page.locator("#result").is_hidden()
     assert page.locator("#intro-copy").is_visible()
     assert page.locator("#submit").inner_text() == "Analisar documento"
+
+
+def test_unsupported_document_displays_friendly_guidance_and_adapted_summary(
+    page_at_home: Page,
+) -> None:
+    page = page_at_home
+    body = {
+        "kind": "unknown",
+        "pages": 1,
+        "fields": {},
+        "missing": [
+            {"key": "name", "label": "Nome"},
+            {"key": "cpf", "label": "CPF"},
+            {"key": "birthDate", "label": "Data de nascimento"},
+        ],
+        "text": "COMPROVANTE DE RESIDENCIA",
+        "warnings": [
+            "O documento aparenta ser um comprovante de residência. "
+            "O ExtrAI suporta atualmente RG e CNH."
+        ],
+        "durationMs": 15,
+        "previews": [],
+    }
+    answer(page, body=body)
+    upload(page)
+    analyze(page)
+
+    assert page.locator("#summary").inner_text() == "Documento não suportado • 1 página"
+    assert page.locator("#warning-box").is_visible()
+    assert page.locator("#warnings-title").inner_text() == "Documento não suportado"
+    assert "comprovante de residência" in page.locator("#warnings").inner_text()
+    assert "RG e CNH" in page.locator("#warnings").inner_text()
+
+
+def test_stop_analysis_via_button(page_at_home: Page) -> None:
+    page = page_at_home
+    page.route("**/api/extract", lambda route: None)
+    upload(page)
+
+    submit = page.locator("#submit")
+    page.wait_for_function('document.querySelector("#submit").textContent === "Parar análise"')
+    assert submit.inner_text() == "Parar análise"
+    assert submit.get_attribute("type") == "button"
+    assert page.locator("#status").inner_text().startswith("Analisando")
+
+    submit.click()
+    page.wait_for_function('document.querySelector("#submit").textContent === "Analisar documento"')
+    assert submit.inner_text() == "Analisar documento"
+    assert page.locator("#status").inner_text() == "Análise cancelada."
+
+
+def test_stop_analysis_via_escape_key(page_at_home: Page) -> None:
+    page = page_at_home
+    page.route("**/api/extract", lambda route: None)
+    upload(page)
+
+    submit = page.locator("#submit")
+    page.wait_for_function('document.querySelector("#submit").textContent === "Parar análise"')
+    assert submit.inner_text() == "Parar análise"
+
+    page.keyboard.press("Escape")
+    page.wait_for_function('document.querySelector("#submit").textContent === "Analisar documento"')
+    assert submit.inner_text() == "Analisar documento"
+    assert page.locator("#status").inner_text() == "Análise cancelada."
+
 

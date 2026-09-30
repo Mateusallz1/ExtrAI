@@ -15,6 +15,13 @@ function setSubmitMode(mode) {
     submit.className = "secondary";
     submit.title = "Limpar análise e voltar à tela inicial (Alt+L)";
     submit.disabled = false;
+  } else if (mode === "cancel") {
+    submit.dataset.mode = "cancel";
+    submit.type = "button";
+    submit.textContent = "Parar análise";
+    submit.className = "secondary";
+    submit.title = "Parar análise em andamento (Esc)";
+    submit.disabled = false;
   } else {
     submit.dataset.mode = "extract";
     submit.type = "submit";
@@ -33,6 +40,7 @@ const focusImage = document.querySelector("#focus-image");
 const focusThumbnails = document.querySelector("#focus-thumbnails");
 const summary = document.querySelector("#summary");
 const warningBox = document.querySelector("#warning-box");
+const warningsTitle = document.querySelector("#warnings-title");
 const warnings = document.querySelector("#warnings");
 const fields = document.querySelector("#fields");
 const rawText = document.querySelector("#raw-text");
@@ -136,6 +144,7 @@ input.addEventListener("change", () => {
   result.classList.add("hidden");
   summary.textContent = "";
   warningBox.classList.add("hidden");
+  if (warningsTitle) warningsTitle.textContent = "Atenção";
   warnings.replaceChildren();
   fields.replaceChildren();
   rawText.textContent = "";
@@ -438,8 +447,8 @@ function renderFocusPreviews(previews, kind) {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!input.files?.[0] || submit.disabled) return;
-  submit.disabled = true;
+  if (!input.files?.[0] || submit.disabled || submit.dataset.mode === "cancel") return;
+  setSubmitMode("cancel");
   document.body.classList.remove("has-result");
   result.classList.add("hidden");
   requestId += 1;
@@ -477,6 +486,7 @@ form.addEventListener("submit", async (event) => {
     if (currentRequest !== requestId || error.name === "AbortError") return;
     status.className = "status error";
     status.textContent = error.message;
+    setSubmitMode("extract");
   } finally {
     if (currentRequest === requestId) {
       if (analysisTimer) {
@@ -484,7 +494,9 @@ form.addEventListener("submit", async (event) => {
         analysisTimer = null;
       }
       pendingRequest = null;
-      submit.disabled = false;
+      if (submit.dataset.mode === "cancel") {
+        setSubmitMode("extract");
+      }
     }
   }
 });
@@ -651,17 +663,28 @@ function renderResult(data) {
   uploadLabel.classList.remove("hidden");
   setSubmitMode("clear");
   syncResultHeight();
-  const kindLabels = { cnh: "CNH", rg: "RG", unknown: "documento" };
-  const kindLabel = kindLabels[data.kind] || "documento";
-  const pageLabel = data.pages === 1 ? "1 página" : `${data.pages} páginas`;
-  summary.textContent = data.kind === "unknown"
-    ? `Não foi possível identificar o documento • ${pageLabel}`
-    : `${kindLabel} identificado • ${pageLabel}`;
-  rawText.textContent = data.text || "Nenhum texto foi encontrado.";
-  renderFocusPreviews(data.previews, data.kind);
   const warningItems = Array.isArray(data.warnings)
     ? data.warnings.filter((warning) => typeof warning === "string" && warning.trim())
     : [];
+  const isUnknown = data.kind === "unknown";
+  const unsupportedWarning = isUnknown && warningItems.some((w) =>
+    /comprovante|passaporte|t[íi]tulo|certid[ãa]o|carteira de trabalho|crlv|contrato|fatura|boleto|n[ãa]o suportado|especializado/i.test(w)
+  );
+
+  const kindLabels = { cnh: "CNH", rg: "RG", unknown: "documento" };
+  const kindLabel = kindLabels[data.kind] || "documento";
+  const pageLabel = data.pages === 1 ? "1 página" : `${data.pages} páginas`;
+  if (unsupportedWarning) {
+    summary.textContent = `Documento não suportado • ${pageLabel}`;
+    if (warningsTitle) warningsTitle.textContent = "Documento não suportado";
+  } else {
+    summary.textContent = data.kind === "unknown"
+      ? `Não foi possível identificar o documento • ${pageLabel}`
+      : `${kindLabel} identificado • ${pageLabel}`;
+    if (warningsTitle) warningsTitle.textContent = "Atenção";
+  }
+  rawText.textContent = data.text || "Nenhum texto foi encontrado.";
+  renderFocusPreviews(data.previews, data.kind);
   warningBox.classList.toggle("hidden", !warningItems.length);
   warnings.replaceChildren(...warningItems.map((warning) => {
     const li = document.createElement("li"); li.textContent = warning; return li;
@@ -768,7 +791,7 @@ document.querySelector("#download-csv")?.addEventListener("click", () => {
 
 window.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-    if (!submit.disabled && input.files?.[0]) {
+    if (!submit.disabled && input.files?.[0] && !pendingRequest) {
       e.preventDefault();
       setSubmitMode("extract");
       form.requestSubmit();
@@ -777,6 +800,11 @@ window.addEventListener("keydown", (e) => {
   }
 
   if (e.key === "Escape") {
+    if (pendingRequest) {
+      e.preventDefault();
+      cancelAnalysis();
+      return;
+    }
     if (zoomScale !== 1 || panX !== 0 || panY !== 0 || rotationDeg !== 0) {
       e.preventDefault();
       resetZoom();
@@ -814,6 +842,21 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+function cancelAnalysis() {
+  if (!pendingRequest) return;
+  requestId += 1;
+  pendingRequest.abort();
+  pendingRequest = null;
+  if (analysisTimer) {
+    clearInterval(analysisTimer);
+    analysisTimer = null;
+  }
+  setSubmitMode("extract");
+  submit.disabled = false;
+  status.className = "status";
+  status.textContent = "Análise cancelada.";
+}
+
 function clearExtraction() {
   requestId += 1;
   if (pendingRequest) {
@@ -839,6 +882,7 @@ function clearExtraction() {
   uploadLabel.classList.add("hidden");
   summary.textContent = "";
   warningBox.classList.add("hidden");
+  if (warningsTitle) warningsTitle.textContent = "Atenção";
   warnings.replaceChildren();
   fields.replaceChildren();
   rawText.textContent = "";
@@ -860,9 +904,12 @@ function clearExtraction() {
 }
 
 submit.addEventListener("click", (e) => {
-  if (submit.dataset.mode === "clear" || submit.type === "button") {
+  if (submit.dataset.mode === "clear") {
     e.preventDefault();
     clearExtraction();
+  } else if (submit.dataset.mode === "cancel") {
+    e.preventDefault();
+    cancelAnalysis();
   }
 });
 

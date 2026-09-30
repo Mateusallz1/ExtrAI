@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -272,7 +273,7 @@ async def health() -> dict[str, object]:
 
 
 @app.post("/api/extract")
-async def extract(document: UploadFile = File(...)) -> dict[str, object]:
+async def extract(request: Request, document: UploadFile = File(...)) -> dict[str, object]:
     if extractions.full():
         await document.close()
         raise HTTPException(
@@ -282,11 +283,40 @@ async def extract(document: UploadFile = File(...)) -> dict[str, object]:
     with extractions:
         content = await document.read(settings.max_upload_bytes + 1)
         try:
-            result = await extractor.extract(
-                file_name=document.filename or "",
-                content=content,
-                content_type=document.content_type,
+            extract_task = asyncio.create_task(
+                extractor.extract(
+                    file_name=document.filename or "",
+                    content=content,
+                    content_type=document.content_type,
+                )
             )
+
+            async def wait_disconnect() -> None:
+                while True:
+                    message = await request.receive()
+                    if message.get("type") == "http.disconnect":
+                        return
+
+            disconnect_task = asyncio.create_task(wait_disconnect())
+            done, pending = await asyncio.wait(
+                [extract_task, disconnect_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+            if disconnect_task in done:
+                logger.info("document extraction aborted by client")
+                raise HTTPException(
+                    status_code=499,
+                    detail="Análise cancelada pelo cliente.",
+                )
+
+            result = extract_task.result()
         except UploadValidationError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
         except ProviderNotConfiguredError as error:
@@ -302,6 +332,8 @@ async def extract(document: UploadFile = File(...)) -> dict[str, object]:
             raise HTTPException(status_code=503, detail=str(error)) from error
         except ExtractionTimeoutError as error:
             raise HTTPException(status_code=504, detail=str(error)) from error
+        except HTTPException:
+            raise
         except Exception as error:
             logger.error(
                 "document extraction failed: error_type=%s",
