@@ -40,6 +40,7 @@ Sem ele, `tests/test_frontend_dom.py` falha em vez de passar em silêncio.
 - A extração inicia automaticamente quando um arquivo válido é selecionado, arrastado ou colado, mantendo reenvio manual via botão ou atalho.
 - Quando existirem imagens incorporadas, a frente principal aparece em detalhe
   ampliável e os demais blocos aparecem como miniaturas.
+- Quando coordenadas de localização (box_2d) estiverem disponíveis, passar o mouse ou dar foco em um campo destaca visualmente a região correspondente no documento.
 - Copiar dados funciona ou exibe uma orientação manual amigável.
 - Falha transitória ou degradação de tempo do modelo principal aciona fallback automático para os modelos configurados.
 - Testes não fazem chamadas reais ao Gemini ou a outro provider.
@@ -56,5 +57,4 @@ Sem ele, `tests/test_frontend_dom.py` falha em vez de passar em silêncio.
   rede de segurança barata, não como prova de comportamento.
 - Não há teste de aparência: cor, espaçamento e legibilidade continuam sendo
   conferidos a olho no navegador local.
-- O foco automático em regiões específicas dos campos ainda não faz parte do
-  visualizador atual.
+- O foco visual por campo depende de o modelo conseguir identificar a região com clareza; campos em páginas não exibidas ou com coordenadas incertas continuam sem destaque sem afetar o dado extraído.

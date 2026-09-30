@@ -623,11 +623,14 @@ def to_api_response(
     fields: dict[str, dict[str, Any]] = {}
     for key, value in extraction.fields.populated().items():
         api_key = API_FIELD_NAMES.get(key, key)
-        fields[api_key] = {
+        field_dict: dict[str, Any] = {
             "value": value.value,
             "confidence": value.confidence,
             "label": FIELD_LABELS[key],
         }
+        if value.box_2d is not None:
+            field_dict["box2d"] = value.box_2d
+        fields[api_key] = field_dict
     expected = EXPECTED_FIELDS.get(extraction.kind, EXPECTED_FIELDS["unknown"])
     missing = [
         {"key": API_FIELD_NAMES.get(key, key), "label": FIELD_LABELS[key]}

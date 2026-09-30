@@ -810,3 +810,36 @@ def test_settings_configured_fallback_models_filters_unconfigured(monkeypatch) -
     configured = settings.configured_fallback_models()
     assert configured == ("google:gemini-3-flash-preview",)
 
+
+def test_extracted_field_validates_and_normalizes_box_2d() -> None:
+    field = ExtractedField(value="MARIA", confidence="high", box_2d=[100, 200, 150, 400])
+    assert field.box_2d == [100, 200, 150, 400]
+
+    # Supports alias 'box2d' and float values rounded
+    field_alias = ExtractedField.model_validate(
+        {"value": "MARIA", "confidence": "high", "box2d": [100.2, 200.8, 150.1, 400.0]}
+    )
+    assert field_alias.box_2d == [100, 201, 150, 400]
+
+    # Inverted coordinates, negative, >1000 or wrong length are discarded as None
+    assert ExtractedField(value="X", confidence="low", box_2d=[150, 200, 100, 400]).box_2d is None
+    assert ExtractedField(value="X", confidence="low", box_2d=[-5, 200, 100, 400]).box_2d is None
+    assert ExtractedField(value="X", confidence="low", box_2d=[0, 200, 100, 1200]).box_2d is None
+    assert ExtractedField(value="X", confidence="low", box_2d=[100, 200]).box_2d is None
+
+
+def test_to_api_response_includes_box2d_when_present() -> None:
+    extraction = DocumentExtraction(
+        kind="cnh",
+        fields={
+            "name": ExtractedField(
+                value="MARIA", confidence="high", box_2d=[100, 200, 150, 400]
+            ),
+            "cpf": ExtractedField(value="123.456.789-09", confidence="medium"),
+        },
+    )
+    response = to_api_response(extraction, pages=1, duration_ms=10)
+    assert response["fields"]["name"]["box2d"] == [100, 200, 150, 400]
+    assert "box2d" not in response["fields"]["cpf"]
+
+

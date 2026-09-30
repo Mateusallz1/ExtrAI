@@ -729,3 +729,40 @@ def test_brand_header_and_logo_are_visible(page_at_home: Page) -> None:
     assert box is not None
     assert round(box["width"]) == 28
 
+
+def test_hovering_field_card_with_box2d_shows_focus_highlight(page_at_home: Page) -> None:
+    page = page_at_home
+    body_with_box = dict(RESULT)
+    body_with_box["fields"] = dict(RESULT["fields"])
+    body_with_box["fields"]["name"] = {
+        "value": "MARIA DE TESTE",
+        "confidence": "high",
+        "label": "Nome",
+        "box2d": [100, 200, 180, 600],
+    }
+    answer(page, body=body_with_box)
+    upload(page)
+    analyze(page)
+
+    name_card = page.locator('.field-card[data-field-label="name"]')
+    assert name_card.get_attribute("data-has-box") == "true"
+    assert name_card.locator(".field-pin").is_visible()
+
+    overlay = page.locator("#focus-overlay")
+    highlight = page.locator("#focus-highlight")
+    assert overlay.is_hidden()
+
+    name_card.hover()
+    page.wait_for_timeout(100)
+    assert overlay.is_visible()
+
+    top = highlight.evaluate("el => el.style.top")
+    left = highlight.evaluate("el => el.style.left")
+    assert top == "10%"
+    assert left == "20%"
+
+    # Move mouse away
+    page.locator("h1").hover()
+    page.wait_for_timeout(100)
+    assert overlay.is_hidden()
+

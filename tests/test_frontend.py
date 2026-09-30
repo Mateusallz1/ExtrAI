@@ -44,6 +44,15 @@ def test_pdf_result_exposes_main_embedded_image_preview() -> None:
     assert "renderFocusPreviews(data.previews, data.kind)" in INDEX_HTML
 
 
+def test_focus_highlight_overlay_and_styles_are_configured() -> None:
+    assert 'id="focus-overlay"' in INDEX_HTML
+    assert 'id="focus-highlight"' in INDEX_HTML
+    assert ".focus-highlight {" in INDEX_HTML
+    assert "function highlightField(box2d)" in INDEX_HTML
+    assert "function clearHighlight()" in INDEX_HTML
+    assert 'card.dataset.hasBox = "true";' in INDEX_HTML
+
+
 def test_selecting_a_new_file_clears_previous_result() -> None:
     change_handler = INDEX_HTML.split('input.addEventListener("change"', maxsplit=1)[1]
     change_handler = change_handler.split('form.addEventListener("submit"', maxsplit=1)[0]

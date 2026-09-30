@@ -13,6 +13,8 @@ const focusEmpty = document.querySelector("#focus-empty");
 const focusLabel = document.querySelector("#focus-label");
 const focusImageContainer = document.querySelector("#focus-image-container");
 const focusImage = document.querySelector("#focus-image");
+const focusOverlay = document.querySelector("#focus-overlay");
+const focusHighlight = document.querySelector("#focus-highlight");
 const focusThumbnails = document.querySelector("#focus-thumbnails");
 const summary = document.querySelector("#summary");
 const warningBox = document.querySelector("#warning-box");
@@ -132,6 +134,7 @@ input.addEventListener("change", () => {
   focusEmpty.classList.add("hidden");
   focusThumbnails.replaceChildren();
   focusImage.removeAttribute("src");
+  clearHighlight();
   if (previewUrl) URL.revokeObjectURL(previewUrl);
   previewUrl = URL.createObjectURL(file);
   const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
@@ -259,7 +262,45 @@ let startY = 0;
 let pinchDist = 0;
 
 function updateZoomTransform() {
-  focusImage.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale}) rotate(${rotationDeg}deg)`;
+  const transform = `translate(${panX}px, ${panY}px) scale(${zoomScale}) rotate(${rotationDeg}deg)`;
+  focusImage.style.transform = transform;
+  if (focusOverlay) {
+    focusOverlay.style.transform = transform;
+  }
+}
+
+function syncFocusOverlay() {
+  if (!focusOverlay || focusOverlay.classList.contains("hidden")) return;
+  focusOverlay.style.top = `${focusImage.offsetTop}px`;
+  focusOverlay.style.left = `${focusImage.offsetLeft}px`;
+  focusOverlay.style.width = `${focusImage.offsetWidth}px`;
+  focusOverlay.style.height = `${focusImage.offsetHeight}px`;
+  focusOverlay.style.transform = focusImage.style.transform;
+}
+
+function highlightField(box2d) {
+  if (!focusOverlay || !focusHighlight || !Array.isArray(box2d) || box2d.length !== 4) {
+    clearHighlight();
+    return;
+  }
+  const [ymin, xmin, ymax, xmax] = box2d;
+  focusOverlay.style.top = `${focusImage.offsetTop}px`;
+  focusOverlay.style.left = `${focusImage.offsetLeft}px`;
+  focusOverlay.style.width = `${focusImage.offsetWidth}px`;
+  focusOverlay.style.height = `${focusImage.offsetHeight}px`;
+  focusOverlay.style.transform = focusImage.style.transform;
+
+  focusHighlight.style.top = `${ymin / 10}%`;
+  focusHighlight.style.left = `${xmin / 10}%`;
+  focusHighlight.style.height = `${Math.max(1, (ymax - ymin) / 10)}%`;
+  focusHighlight.style.width = `${Math.max(1, (xmax - xmin) / 10)}%`;
+  focusOverlay.classList.remove("hidden");
+}
+
+function clearHighlight() {
+  if (focusOverlay) {
+    focusOverlay.classList.add("hidden");
+  }
 }
 
 function resetZoom() {
@@ -268,6 +309,7 @@ function resetZoom() {
   panY = 0;
   rotationDeg = 0;
   updateZoomTransform();
+  syncFocusOverlay();
 }
 
 const zoomInBtn = document.querySelector("#zoom-in");
@@ -546,6 +588,32 @@ function renderFieldCard(key, value) {
     badge.title = confidenceHints[value.confidence];
     name.append(badge);
   }
+  if (value.value && Array.isArray(value.box2d) && value.box2d.length === 4) {
+    card.dataset.hasBox = "true";
+    const pin = document.createElement("span");
+    pin.className = "field-pin";
+    pin.title = "Destacar no documento";
+    pin.setAttribute("aria-label", `Destacar ${value.label} no documento`);
+    pin.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3m0 14v3M2 12h3m14 0h3"></path></svg>';
+    name.append(pin);
+
+    const onEnter = () => {
+      if (focusState.previews.length && focusState.index !== 0) {
+        focusState.index = 0;
+        renderFocusPreview();
+      }
+      highlightField(value.box2d);
+    };
+    const onLeave = () => clearHighlight();
+
+    card.addEventListener("mouseenter", onEnter);
+    card.addEventListener("mouseleave", onLeave);
+    pin.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onEnter();
+      focusPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
   const fieldValue = document.createElement("span");
   fieldValue.className = "field-value";
   fieldValue.contentEditable = "plaintext-only";
@@ -555,6 +623,10 @@ function renderFieldCard(key, value) {
   fieldValue.textContent = value.value || "Não identificado";
   if (value.value && !checkFieldValidity(key, value.value)) {
     fieldValue.classList.add("field-invalid");
+  }
+  if (value.value && Array.isArray(value.box2d) && value.box2d.length === 4) {
+    fieldValue.addEventListener("focus", () => highlightField(value.box2d));
+    fieldValue.addEventListener("blur", () => clearHighlight());
   }
 
   const control = document.createElement("div");

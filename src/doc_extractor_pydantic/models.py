@@ -99,7 +99,7 @@ def _is_valid_category(value: str) -> bool:
 class ExtractedField(BaseModel):
     """A value found in the document, with an explicit uncertainty level."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     value: str | None = Field(
         default=None,
@@ -109,6 +109,30 @@ class ExtractedField(BaseModel):
         default="low",
         description="Confidence based on legibility and proximity to the field label.",
     )
+    box_2d: list[int] | None = Field(
+        default=None,
+        alias="box2d",
+        description=(
+            "Coordenadas [ymin, xmin, ymax, xmax] normalizadas de 0 a 1000 onde "
+            "o valor aparece, ou null."
+        ),
+    )
+
+    @field_validator("box_2d", mode="before")
+    @classmethod
+    def validate_box_2d(cls, value: object) -> list[int] | None:
+        if value is None:
+            return None
+        if not isinstance(value, (list, tuple)) or len(value) != 4:
+            return None
+        try:
+            coords = [int(round(float(v))) for v in value]
+        except (ValueError, TypeError):
+            return None
+        ymin, xmin, ymax, xmax = coords
+        if not (0 <= ymin < ymax <= 1000 and 0 <= xmin < xmax <= 1000):
+            return None
+        return coords
 
     @field_validator("value", mode="before")
     @classmethod
