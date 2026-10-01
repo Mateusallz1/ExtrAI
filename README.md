@@ -130,6 +130,7 @@ Recebe o documento via formulário `multipart/form-data` no campo `document`.
 - `birthDate`: Data de nascimento (DD/MM/AAAA)
 - `issueDate`: Data de emissão (DD/MM/AAAA)
 - `validity`: Data de validade da CNH (DD/MM/AAAA)
+- `firstLicenceDate`: Data da 1ª habilitação da CNH (DD/MM/AAAA)
 - `registration`: Número de registro do documento
 - `category`: Categoria de habilitação (A, B, C, D, E, AB, etc.)
 - `birthPlace`: Naturalidade / Local de nascimento

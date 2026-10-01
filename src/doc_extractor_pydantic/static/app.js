@@ -540,12 +540,12 @@ function checkFieldValidity(key, text, allowIncomplete = false) {
     if (digits.length < 11 && allowIncomplete) return true;
     return isValidCpf(digits);
   }
-  if (key === "birthDate" || key === "issueDate" || key === "validity") {
+  if (key === "birthDate" || key === "issueDate" || key === "validity" || key === "firstLicenceDate") {
     if (text.trim().length < 10 && allowIncomplete) return true;
     if (!isValidDate(text)) return false;
     const [day, month, year] = text.trim().split("/").map(Number);
     const now = new Date();
-    if ((key === "birthDate" || key === "issueDate") && new Date(year, month - 1, day) > now) {
+    if ((key === "birthDate" || key === "issueDate" || key === "firstLicenceDate") && new Date(year, month - 1, day) > now) {
       return false;
     }
     if (key === "validity" && year > now.getFullYear() + 15) {
