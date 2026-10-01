@@ -38,10 +38,10 @@ MAX_STREAM_OPERATIONS = 10_000
 MAX_CONCURRENT_EXTRACTIONS = 2
 """Maximum concurrent extraction requests handled by this server process."""
 
-EXTRACTION_TIMEOUT_SECONDS = 90.0
+EXTRACTION_TIMEOUT_SECONDS = 42.0
 """Total time budget for local processing and provider responses, including retries."""
 
-MODEL_TIMEOUT_SECONDS = 45.0
+MODEL_TIMEOUT_SECONDS = 18.0
 """Time budget allowed for a single model attempt before failing over to a fallback model."""
 
 PROVIDER_RETRIES = 2
