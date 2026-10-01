@@ -27,8 +27,8 @@ de pixels; parsing/decodificação roda em processo descartável com prazo próp
 | Tentativas de prévia | 4 | Corte antes de decodificar e codificar em base64 |
 | Análises simultâneas | 2 | `/api/extract`, com `429` acima disso |
 | Processamento local | 15 s | Processo descartável, encerrado em timeout/cancelamento |
-| Tempo de análise | 90 s | Inclui processamento local e retries do provider, com `504` |
-| Tempo por modelo antes de fallback | 45 s | Failover para o próximo modelo quando houver reserva |
+| Tempo de análise | 42 s | Inclui processamento local e retries do provider, com `504` |
+| Tempo por modelo antes de fallback | 18 s | Failover para o próximo modelo quando houver reserva |
 | Invocações de modelo | 3 por modelo | Um orçamento para retries internos e externos, inclusive falhas |
 
 O PDF é aberto uma única vez por requisição: `validate_upload` devolve o
@@ -64,7 +64,7 @@ orçamento, ainda sujeita ao prazo global.
   garantindo resiliência sem intervenção manual.
 - Se todos os modelos falharem, o resultado é HTTP 503 após retries; quota ou limite
   resulta em HTTP 429. Falhas não transitórias (como credenciais inválidas) não acionam fallback.
-  Provider lento resulta em HTTP 504 quando o tempo limite local de 90s estoura; a
+  Provider lento resulta em HTTP 504 quando o tempo limite local de 42s estoura; a
   chamada é cancelada, mas o custo já consumido no provedor não volta atrás.
 - O piloto não possui autenticação nem rate limit por cliente: acima de duas
   análises simultâneas a resposta é `429`, sem fila e sem nova tentativa
