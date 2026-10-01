@@ -533,6 +533,77 @@ function isValidDate(str) {
   return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
 }
 
+function isExpiredDate(str) {
+  if (!isValidDate(str)) return false;
+  const [day, month, year] = str.trim().split("/").map(Number);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return new Date(year, month - 1, day) < today;
+}
+
+function parseDateValue(text) {
+  if (!text || text === "Não identificado" || !isValidDate(text)) return null;
+  const [day, month, year] = text.trim().split("/").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function checkCrossDateConsistency() {
+  const getDateVal = (fieldKey) => {
+    const card = fields.querySelector(`.field-card[data-field-label="${fieldKey}"][data-found="true"]`);
+    if (!card) return null;
+    const text = card.querySelector(".field-value")?.textContent?.trim();
+    return parseDateValue(text);
+  };
+
+  const birthDate = getDateVal("birthDate");
+  const issueDate = getDateVal("issueDate");
+  const firstLicence = getDateVal("firstLicenceDate");
+  const validity = getDateVal("validity");
+
+  const conflicts = new Set();
+  const conflictReasons = {};
+
+  const recordConflict = (k1, k2, reason) => {
+    conflicts.add(k1);
+    conflicts.add(k2);
+    if (!conflictReasons[k1]) conflictReasons[k1] = reason;
+    if (!conflictReasons[k2]) conflictReasons[k2] = reason;
+  };
+
+  if (birthDate && issueDate && birthDate >= issueDate) {
+    recordConflict("birthDate", "issueDate", "Data de nascimento incompatível com data de emissão.");
+  }
+  if (birthDate && firstLicence && birthDate >= firstLicence) {
+    recordConflict("birthDate", "firstLicenceDate", "Data de nascimento incompatível com 1ª habilitação.");
+  }
+  if (firstLicence && issueDate && firstLicence > issueDate) {
+    recordConflict("firstLicenceDate", "issueDate", "Data da 1ª habilitação posterior à emissão.");
+  }
+  if (firstLicence && validity && validity <= firstLicence) {
+    recordConflict("firstLicenceDate", "validity", "Data de validade incompatível com 1ª habilitação.");
+  }
+  if (issueDate && validity && validity <= issueDate) {
+    recordConflict("issueDate", "validity", "Data de validade anterior ou igual à emissão.");
+  }
+  if (birthDate && validity && validity <= birthDate) {
+    recordConflict("birthDate", "validity", "Data de validade incompatível com nascimento.");
+  }
+
+  for (const dateKey of ["birthDate", "issueDate", "firstLicenceDate", "validity"]) {
+    const card = fields.querySelector(`.field-card[data-field-label="${dateKey}"]`);
+    if (!card) continue;
+    const valEl = card.querySelector(".field-value");
+    if (!valEl) continue;
+    const isConflicting = conflicts.has(dateKey);
+    valEl.classList.toggle("field-temporal-inconsistent", isConflicting);
+    if (isConflicting && !valEl.classList.contains("field-invalid")) {
+      valEl.title = conflictReasons[dateKey] || "Inconsistência cronológica entre datas.";
+      valEl.setAttribute("aria-invalid", "true");
+    }
+  }
+  return conflicts.size > 0;
+}
+
 function checkFieldValidity(key, text, allowIncomplete = false) {
   if (!text || text === "Não identificado") return true;
   if (key === "cpf") {
@@ -575,6 +646,13 @@ function renderFieldCard(key, value) {
     badge.title = confidenceHints[value.confidence];
     name.append(badge);
   }
+  const expiredBadge = document.createElement("span");
+  if (key === "validity") {
+    expiredBadge.className = "field-badge field-badge-expired hidden";
+    expiredBadge.textContent = "vencida";
+    expiredBadge.title = "Documento com validade expirada";
+    name.append(expiredBadge);
+  }
   const fieldValue = document.createElement("span");
   fieldValue.className = "field-value";
   fieldValue.contentEditable = "plaintext-only";
@@ -589,6 +667,10 @@ function renderFieldCard(key, value) {
     fieldValue.title = !valid
       ? `${value.label} inválido ou incompleto. Confira o documento antes de usar.`
       : text && text !== "Não identificado" ? "Clique para copiar ou editar" : "";
+    if (key === "validity") {
+      expiredBadge.classList.toggle("hidden", !isExpiredDate(text));
+    }
+    checkCrossDateConsistency();
   }
   updateValidity(value.value || "");
 
@@ -693,6 +775,7 @@ function renderResult(data) {
   const missing = (Array.isArray(data.missing) ? data.missing : [])
     .map((field) => renderFieldCard(field.key, { label: field.label, value: null }));
   fields.replaceChildren(...found, ...missing);
+  checkCrossDateConsistency();
   syncResultHeight();
 }
 
@@ -765,7 +848,7 @@ function downloadFile(content, filename, mimeType) {
 }
 
 function reportDownload(message, items) {
-  const invalid = items.some((item) => !checkFieldValidity(item.key, item.value));
+  const invalid = items.some((item) => !checkFieldValidity(item.key, item.value)) || checkCrossDateConsistency();
   status.className = invalid ? "status error" : "status";
   status.textContent = invalid
     ? `${message} Há campos inválidos ou incompletos; confira o documento antes de usar.`

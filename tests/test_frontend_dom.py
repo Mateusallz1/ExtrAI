@@ -452,11 +452,53 @@ def test_field_dynamic_validation_flags_invalid_values(page_at_home: Page) -> No
     assert "field-invalid" not in (birth_field.get_attribute("class") or "")
 
     validity_field = page.locator('[data-field-label="validity"] .field-value')
+    validity_badge = page.locator('[data-field-label="validity"] .field-badge-expired')
     validity_field.fill("10/02/2099")
     assert "field-invalid" in (validity_field.get_attribute("class") or "")
 
+    validity_field.fill("10/02/2020")
+    assert "field-invalid" not in (validity_field.get_attribute("class") or "")
+    assert "hidden" not in (validity_badge.get_attribute("class") or "")
+
     validity_field.fill("10/02/2030")
     assert "field-invalid" not in (validity_field.get_attribute("class") or "")
+    assert "hidden" in (validity_badge.get_attribute("class") or "")
+
+
+def test_cross_field_temporal_inconsistency_is_flagged(page_at_home: Page) -> None:
+    page = page_at_home
+    body = {
+        **RESULT,
+        "fields": {
+            **RESULT["fields"],
+            "birthDate": {
+                "value": "10/02/2000",
+                "confidence": "high",
+                "label": "Data de nascimento",
+            },
+            "issueDate": {
+                "value": "10/02/1990",
+                "confidence": "high",
+                "label": "Data de emissão",
+            },
+        },
+    }
+    answer(page, body=body)
+    upload(page)
+    analyze(page)
+
+    birth_field = page.locator('[data-field-label="birthDate"] .field-value')
+    issue_field = page.locator('[data-field-label="issueDate"] .field-value')
+
+    assert "field-temporal-inconsistent" in (birth_field.get_attribute("class") or "")
+    assert "field-temporal-inconsistent" in (issue_field.get_attribute("class") or "")
+
+    # Fix the issue date
+    issue_field.fill("10/02/2020")
+    page.locator("#summary").click()
+
+    assert "field-temporal-inconsistent" not in (birth_field.get_attribute("class") or "")
+    assert "field-temporal-inconsistent" not in (issue_field.get_attribute("class") or "")
 
 
 @pytest.mark.parametrize(
