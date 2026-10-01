@@ -112,6 +112,12 @@ def test_prompt_maps_cnh_category_to_the_cat_hab_field() -> None:
     assert "tabelas de veículos" in prompt
 
 
+def test_prompt_instructs_cnh_first_licence_date_extraction() -> None:
+    prompt = EXTRACTION_INSTRUCTIONS.lower()
+    assert "1ª habilitação" in prompt
+    assert "first_licence_date" in EXTRACTION_INSTRUCTIONS
+
+
 def test_google_agent_uses_minimal_thinking_without_a_network_call(monkeypatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     agent = DocumentExtractor(
@@ -275,6 +281,7 @@ def test_pydantic_output_keeps_valid_semantic_values() -> None:
             "birth_date": {"value": "10/02/1990", "confidence": "high"},
             "issue_date": {"value": "12/03/2024", "confidence": "high"},
             "validity": {"value": "12/03/2034", "confidence": "high"},
+            "first_licence_date": {"value": "15/05/2010", "confidence": "high"},
             "registration": {"value": "12345678901", "confidence": "high"},
             "category": {"value": "ab", "confidence": "high"},
         },
@@ -284,11 +291,54 @@ def test_pydantic_output_keeps_valid_semantic_values() -> None:
         "birth_date",
         "issue_date",
         "validity",
+        "first_licence_date",
         "registration",
         "category",
     }
     assert extraction.fields.category.value == "AB"
+    assert extraction.fields.first_licence_date.value == "15/05/2010"
     assert extraction.warnings == []
+
+
+def test_pydantic_output_removes_invalid_and_incoherent_first_licence_dates() -> None:
+    extraction_future = DocumentExtraction(
+        fields={
+            "birth_date": {"value": "10/02/1990", "confidence": "high"},
+            "first_licence_date": {"value": "01/01/2099", "confidence": "high"},
+        },
+    )
+    assert extraction_future.fields.first_licence_date is None
+    assert "A data de 1ª habilitação não pode ser no futuro." in extraction_future.warnings
+
+    extraction_birth = DocumentExtraction(
+        fields={
+            "birth_date": {"value": "10/02/2010", "confidence": "high"},
+            "first_licence_date": {"value": "10/02/2005", "confidence": "high"},
+        },
+    )
+    assert extraction_birth.fields.birth_date is None
+    assert extraction_birth.fields.first_licence_date is None
+    assert "As datas de nascimento e 1ª habilitação são incompatíveis." in extraction_birth.warnings
+
+    extraction_issue = DocumentExtraction(
+        fields={
+            "issue_date": {"value": "10/02/2015", "confidence": "high"},
+            "first_licence_date": {"value": "10/02/2020", "confidence": "high"},
+        },
+    )
+    assert extraction_issue.fields.first_licence_date is None
+    assert extraction_issue.fields.issue_date is None
+    assert "As datas de 1ª habilitação e emissão são incompatíveis." in extraction_issue.warnings
+
+    extraction_val = DocumentExtraction(
+        fields={
+            "validity": {"value": "10/02/2015", "confidence": "high"},
+            "first_licence_date": {"value": "10/02/2020", "confidence": "high"},
+        },
+    )
+    assert extraction_val.fields.first_licence_date is None
+    assert extraction_val.fields.validity is None
+    assert "As datas de 1ª habilitação e validade são incompatíveis." in extraction_val.warnings
 
 
 def test_parentage_normalizes_escaped_and_labeled_line_breaks() -> None:
@@ -328,6 +378,7 @@ def test_rg_does_not_warn_about_fields_a_rg_does_not_have() -> None:
             "Não foi possível localizar o número de registro.",
             "A categoria de habilitação não foi encontrada.",
             "A validade não está legível.",
+            "A data da 1ª habilitação não foi localizada.",
             "A data de emissão não está legível.",
         ],
     )
@@ -391,8 +442,16 @@ def test_api_response_lists_the_expected_fields_that_were_not_found() -> None:
     missing = [field["key"] for field in result["missing"]]
 
     assert "name" not in missing
-    assert missing == ["cpf", "birthDate", "issueDate", "validity", "registration",
-                       "category", "parentage"]
+    assert missing == [
+        "cpf",
+        "birthDate",
+        "issueDate",
+        "validity",
+        "firstLicenceDate",
+        "registration",
+        "category",
+        "parentage",
+    ]
     assert result["missing"][0]["label"] == "CPF"
     assert result["fields"]["name"]["confidence"] == "low"
 
@@ -402,6 +461,7 @@ def test_expected_fields_follow_the_document_kind() -> None:
     unknown = to_api_response(DocumentExtraction(kind="unknown"), pages=1, duration_ms=1)
 
     assert "category" not in [field["key"] for field in rg["missing"]]
+    assert "firstLicenceDate" not in [field["key"] for field in rg["missing"]]
     assert [field["key"] for field in unknown["missing"]] == ["name", "cpf", "birthDate"]
 
 

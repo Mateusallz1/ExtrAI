@@ -335,6 +335,7 @@ FIELD_LABELS = {
     "birth_date": "Data de nascimento",
     "issue_date": "Data de emissão",
     "validity": "Validade",
+    "first_licence_date": "1ª Habilitação",
     "registration": "Registro",
     "category": "Categoria",
     "birth_place": "Local de nascimento",
@@ -344,6 +345,7 @@ FIELD_LABELS = {
 API_FIELD_NAMES = {
     "birth_date": "birthDate",
     "issue_date": "issueDate",
+    "first_licence_date": "firstLicenceDate",
     "birth_place": "birthPlace",
 }
 

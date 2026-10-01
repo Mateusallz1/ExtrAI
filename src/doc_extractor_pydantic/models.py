@@ -16,6 +16,7 @@ EXPECTED_FIELDS: dict[str, tuple[str, ...]] = {
         "birth_date",
         "issue_date",
         "validity",
+        "first_licence_date",
         "registration",
         "category",
         "parentage",
@@ -30,6 +31,13 @@ FIELD_TERMS: dict[str, tuple[str, ...]] = {
     "cpf": ("cpf",),
     "birth_date": ("nascimento",),
     "issue_date": ("emissão", "emissao"),
+    "first_licence_date": (
+        "1ª habilitação",
+        "primeira habilitação",
+        "1a habilitacao",
+        "1ª hab",
+        "1a hab",
+    ),
     "registration": ("registro",),
     "category": ("categoria", "cat hab", "habilitação"),
     "validity": ("validade",),
@@ -143,6 +151,9 @@ class DocumentFields(BaseModel):
     birth_date: ExtractedField | None = Field(default=None, description="Data de nascimento")
     issue_date: ExtractedField | None = Field(default=None, description="Data de emissão")
     validity: ExtractedField | None = Field(default=None, description="Data de validade")
+    first_licence_date: ExtractedField | None = Field(
+        default=None, description="Data da 1ª habilitação"
+    )
     registration: ExtractedField | None = Field(default=None, description="Número de registro")
     category: ExtractedField | None = Field(default=None, description="Categoria da habilitação")
     birth_place: ExtractedField | None = Field(default=None, description="Local de nascimento")
@@ -175,11 +186,12 @@ class DocumentFields(BaseModel):
             parentage = re.sub(r"\n{2,}", "\n", parentage).strip()
             self.parentage.value = parentage
 
-        date_fields = ("birth_date", "issue_date", "validity")
+        date_fields = ("birth_date", "issue_date", "validity", "first_licence_date")
         date_labels = {
             "birth_date": "nascimento",
             "issue_date": "emissão",
             "validity": "validade",
+            "first_licence_date": "1ª habilitação",
         }
         parsed_dates: dict[str, date] = {}
         for attribute in date_fields:
@@ -197,6 +209,7 @@ class DocumentFields(BaseModel):
         birth_date = parsed_dates.get("birth_date")
         issue_date = parsed_dates.get("issue_date")
         validity = parsed_dates.get("validity")
+        first_licence_date = parsed_dates.get("first_licence_date")
         if birth_date and birth_date > today:
             self.birth_date = None
             birth_date = None
@@ -205,6 +218,10 @@ class DocumentFields(BaseModel):
             self.issue_date = None
             issue_date = None
             issues.append("A data de emissão não pode ser no futuro.")
+        if first_licence_date and first_licence_date > today:
+            self.first_licence_date = None
+            first_licence_date = None
+            issues.append("A data de 1ª habilitação não pode ser no futuro.")
         if validity and (
             validity > date(today.year + MAX_VALIDITY_HORIZON_YEARS, 12, 31)
             or (issue_date and validity.year > issue_date.year + MAX_VALIDITY_HORIZON_YEARS)
@@ -216,6 +233,18 @@ class DocumentFields(BaseModel):
             self.birth_date = None
             self.issue_date = None
             issues.append("As datas de nascimento e emissão são incompatíveis.")
+        if birth_date and first_licence_date and birth_date >= first_licence_date:
+            self.birth_date = None
+            self.first_licence_date = None
+            issues.append("As datas de nascimento e 1ª habilitação são incompatíveis.")
+        if first_licence_date and issue_date and first_licence_date > issue_date:
+            self.first_licence_date = None
+            self.issue_date = None
+            issues.append("As datas de 1ª habilitação e emissão são incompatíveis.")
+        if first_licence_date and validity and validity <= first_licence_date:
+            self.first_licence_date = None
+            self.validity = None
+            issues.append("As datas de 1ª habilitação e validade são incompatíveis.")
         if issue_date and validity and validity <= issue_date:
             self.issue_date = None
             self.validity = None

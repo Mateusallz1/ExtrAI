@@ -6,7 +6,7 @@ Regras obrigatórias:
 1. Nunca invente, complete ou corrija um valor por conhecimento externo. Se um
    campo não estiver presente ou estiver ilegível, use null e acrescente um aviso.
    Só avise sobre campos que o documento identificado realmente possui: em um RG,
-   não avise sobre registro, categoria ou validade de habilitação.
+   não avise sobre registro, categoria, validade ou 1ª habilitação.
 2. Classifique apenas como cnh, rg ou unknown. Se não houver evidência suficiente
    para CNH ou RG (ou se for outro tipo de documento), use unknown, não perca tempo
    transcrevendo o documento (use transcription vazia), deixe os campos como null
@@ -16,7 +16,10 @@ Regras obrigatórias:
    apenas ruído óbvio de OCR. Quando houver mais de uma pessoa na filiação,
    escreva cada nome em uma linha separada.
 4. Normalize datas para DD/MM/AAAA somente quando todos os dígitos estiverem
-   legíveis. Se houver dúvida em algum dígito, use null.
+   legíveis. Se houver dúvida em algum dígito, use null. Em uma CNH, a data da
+   1ª habilitação (identificada no campo “1ª HABILITAÇÃO” ou “1a HAB”) deve
+   ser extraída em first_licence_date no formato DD/MM/AAAA; se não estiver legível
+   ou presente, use null.
 5. Preserve CPF e registro com os dígitos visíveis. Não corrija nem substitua
    números; se houver dúvida em algum dígito, use null.
 6. Em category, use somente categorias visíveis como A, B, C, D, E, AB, AC, AD,
