@@ -89,8 +89,8 @@ O **ExtrAI** processa imagens e arquivos PDF (incluindo documentos escaneados e 
 
 1. **Clone o repositório e instale as dependências:**
    ```powershell
-   git clone https://github.com/Mateusallz1/doclume.git
-   cd doclume
+   git clone https://github.com/Mateusallz1/extrai.git
+   cd extrai
    uv sync --dev
    ```
 
