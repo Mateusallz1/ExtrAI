@@ -255,6 +255,73 @@ def test_manual_filling_missing_field_enables_copy(page_at_home: Page) -> None:
     assert "Validade: 15/12/2030" in copied
 
 
+def test_copy_tsv_button_copies_tab_separated_row(page_at_home: Page) -> None:
+    page = page_at_home
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    answer(page)
+    upload(page)
+    analyze(page)
+
+    page.click("#copy-tsv")
+    page.wait_for_timeout(200)
+    copied = page.evaluate("navigator.clipboard.readText()")
+
+    assert copied == "MARIA DE TESTE\t123.456.789-09\t10/02/1990"
+    assert "Linha copiada (TSV)" in page.locator("#status").inner_text()
+
+
+def test_copy_tsv_with_shift_includes_headers(page_at_home: Page) -> None:
+    page = page_at_home
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    answer(page)
+    upload(page)
+    analyze(page)
+
+    page.click("#copy-tsv", modifiers=["Shift"])
+    page.wait_for_timeout(200)
+    copied = page.evaluate("navigator.clipboard.readText()")
+
+    lines = copied.splitlines()
+    assert len(lines) == 2
+    assert lines[0] == "Nome\tCPF\tData de nascimento"
+    assert lines[1] == "MARIA DE TESTE\t123.456.789-09\t10/02/1990"
+    assert "Linha com cabeçalhos copiada (TSV)" in page.locator("#status").inner_text()
+
+
+def test_keyboard_shortcut_alt_t_triggers_copy_tsv(page_at_home: Page) -> None:
+    page = page_at_home
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    answer(page)
+    upload(page)
+    analyze(page)
+
+    page.keyboard.press("Alt+t")
+    page.wait_for_timeout(200)
+    copied = page.evaluate("navigator.clipboard.readText()")
+
+    assert copied == "MARIA DE TESTE\t123.456.789-09\t10/02/1990"
+
+
+def test_copy_tsv_sanitizes_spreadsheet_formulas(page_at_home: Page) -> None:
+    page = page_at_home
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    body = {
+        **RESULT,
+        "fields": {
+            "name": {"value": "=cmd|' /C calc'!A0", "confidence": "high", "label": "Nome"},
+        },
+    }
+    answer(page, body=body)
+    upload(page)
+    analyze(page)
+
+    page.click("#copy-tsv")
+    page.wait_for_timeout(200)
+    copied = page.evaluate("navigator.clipboard.readText()")
+
+    assert copied.startswith("'=cmd")
+
+
 def test_zoom_buttons_adjust_focus_image_transform(page_at_home: Page) -> None:
     page = page_at_home
     body_with_preview = dict(RESULT)
