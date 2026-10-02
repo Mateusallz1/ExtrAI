@@ -64,7 +64,7 @@ SECURITY_HEADERS = {
 }
 
 app = FastAPI(
-    title="DocLume",
+    title="ExtrAI",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
