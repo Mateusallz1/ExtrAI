@@ -229,6 +229,9 @@ class DocumentFields(BaseModel):
             self.validity = None
             validity = None
             issues.append("A data de validade é excessivamente distante no futuro.")
+        elif validity and validity < today:
+            formatted_validity = validity.strftime("%d/%m/%Y")
+            issues.append(f"A data de validade está expirada (vencida em {formatted_validity}).")
         if birth_date and issue_date and birth_date >= issue_date:
             self.birth_date = None
             self.issue_date = None

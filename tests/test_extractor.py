@@ -653,6 +653,20 @@ def test_pydantic_output_preserves_realistic_future_validity() -> None:
     assert extraction.fields.validity.value == "10/02/2034"
 
 
+def test_pydantic_output_warns_on_expired_validity_without_dropping_value() -> None:
+    extraction = DocumentExtraction(
+        kind="cnh",
+        fields={
+            "birth_date": {"value": "10/02/1990", "confidence": "high"},
+            "issue_date": {"value": "10/02/2015", "confidence": "high"},
+            "validity": {"value": "10/02/2020", "confidence": "high"},
+        },
+    )
+    assert extraction.fields.validity is not None
+    assert extraction.fields.validity.value == "10/02/2020"
+    assert any("expirada" in w and "10/02/2020" in w for w in extraction.warnings)
+
+
 def test_rg_keeps_warning_about_registro_geral() -> None:
     extraction = DocumentExtraction(
         kind="rg",
