@@ -1,8 +1,8 @@
-# DocLume (Doc Extractor PydanticAI)
+# ExtrAI
 
 Extrator inteligente, privativo e auditável de documentos de identificação brasileiros (**RG** e **CNH**).
 
-O **DocLume** processa imagens e arquivos PDF (incluindo documentos escaneados e multifolhas), identifica o tipo do documento e extrai dados cadastrais estruturados para conferência humana, combinando processamento local, validação semântica determinística e inteligência artificial multimodal via [PydanticAI](https://ai.pydantic.dev/). Não há avaliação automatizada de acurácia em documentos reais.
+O **ExtrAI** processa imagens e arquivos PDF (incluindo documentos escaneados e multifolhas), identifica o tipo do documento e extrai dados cadastrais estruturados para conferência humana, combinando processamento local, validação semântica determinística e inteligência artificial multimodal via [PydanticAI](https://ai.pydantic.dev/). Não há avaliação automatizada de acurácia em documentos reais.
 
 ---
 

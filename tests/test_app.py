@@ -552,5 +552,5 @@ def test_cancelled_upload_read_closes_document_and_releases_slot(monkeypatch) ->
     asyncio.run(run())
 
 
-def test_app_title_is_doclume() -> None:
-    assert main_module.app.title == "DocLume"
+def test_app_title_is_extrai() -> None:
+    assert main_module.app.title == "ExtrAI"
