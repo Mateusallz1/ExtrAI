@@ -35,7 +35,7 @@ O **DocLume** processa imagens e arquivos PDF (incluindo documentos escaneados e
 | :--- | :--- |
 | **Formatos Suportados** | `.pdf`, `.jpg`, `.jpeg`, `.png` e `.webp` (até 15 MB; PDF até 20 páginas; imagens estáticas e legíveis até 40 MP). |
 | **Área de Transferência** | Pressione `Ctrl + V` em qualquer ponto da tela para colar uma imagem ou captura de tela. |
-| **Copiar Essenciais** | Copia instantaneamente Nome, CPF, Data de Nascimento e Registro para colar em cadastros. |
+| **Modos Ágeis de Cópia** | Copie apenas os essenciais (`Alt+C`), a ficha cadastral formatada (`Alt+A`) ou linha tabular (TSV) pronta para o Excel/Sheets (`Alt+T`). |
 | **Exportação CSV & JSON** | Baixe a extração estruturada diretamente no navegador com 1 clique. |
 | **Visualizador Interativo** | Zoom (0,5x a 5x), movimentação por arrasto (pan), roda do mouse e rotação em 90°. |
 | **Validação em Tempo Real** | Alerta visual de borda vermelha se um CPF ou data editada estiver fora dos padrões oficiais. |

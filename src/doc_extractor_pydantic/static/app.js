@@ -814,13 +814,49 @@ document.querySelector("#copy-core")?.addEventListener("click", async () => {
   }
 });
 
-document.querySelector("#copy").addEventListener("click", async () => {
+document.querySelector("#copy")?.addEventListener("click", async () => {
   if (!lastData) return;
-  const values = [...fields.querySelectorAll('.field-card[data-found="true"]')].map((field) => `${field.querySelector(".field-name span").textContent}: ${field.querySelector(".field-value").textContent}`);
-  if (await copyText(values.join("\n"))) status.textContent = "Dados copiados. Faça a conferência final.";
+  const items = getExtractedItems();
+  if (!items.length) {
+    status.textContent = "Nenhum dado encontrado para copiar.";
+    return;
+  }
+  const kind = (lastData.kind || "documento").toUpperCase();
+  const lines = [
+    `FICHA CADASTRAL — ${kind}`,
+    ...items.map((it) => `${it.label}: ${it.value}`),
+  ];
+  if (await copyText(lines.join("\n"))) {
+    status.textContent = "Ficha cadastral copiada. Faça a conferência final.";
+  }
 });
-document.querySelector("#copy-text").addEventListener("click", async () => {
-  if (await copyText(rawText.textContent)) status.textContent = "Texto do documento copiado.";
+
+document.querySelector("#copy-tsv")?.addEventListener("click", async (e) => {
+  if (!lastData) return;
+  const items = getExtractedItems();
+  if (!items.length) {
+    status.textContent = "Nenhum dado encontrado para copiar.";
+    return;
+  }
+  const cells = items.map((it) => {
+    let val = it.value.trim();
+    if (/^[\s\u0000-\u001f\u007f-\u009f]*[=+\-@]/.test(val)) {
+      val = `'${val}`;
+    }
+    return val.replace(/\r\n|\r|\n/g, " / ");
+  });
+  const tsvText = cells.join("\t");
+  if (e && e.shiftKey) {
+    const headers = items.map((it) => it.label.trim().replace(/\r\n|\r|\n/g, " "));
+    const fullTsv = `${headers.join("\t")}\n${tsvText}`;
+    if (await copyText(fullTsv)) {
+      status.textContent = "Linha com cabeçalhos copiada (TSV). Cole na planilha (Ctrl+V).";
+    }
+    return;
+  }
+  if (await copyText(tsvText)) {
+    status.textContent = "Linha copiada (TSV). Cole na planilha (Ctrl+V).";
+  }
 });
 
 function getExtractedItems() {
@@ -928,6 +964,14 @@ window.addEventListener("keydown", (e) => {
     ) {
       e.preventDefault();
       document.querySelector("#copy")?.click();
+      return;
+    }
+    if (
+      (e.altKey && e.key.toLowerCase() === "t") ||
+      ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "t")
+    ) {
+      e.preventDefault();
+      document.querySelector("#copy-tsv")?.click();
       return;
     }
     if (e.altKey && e.key.toLowerCase() === "l") {
