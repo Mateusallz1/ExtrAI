@@ -1,0 +1,430 @@
+<html class=""><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AR ABS CERTIFICACAO DIGITAL - Modelo de Teste</title>
+</head>
+
+<body class="" style="padding-right: 0px;">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light navbar-top-color">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <img src="/public/remote-upload/arabscd-site.png" alt="">
+            </a>
+        </div>
+    </nav>
+
+
+<div class="container-fluid">
+
+    <div class="container">     
+        <div class="row pt-5">
+    <div class="col-lg steps active-step">
+        <p class="m-0">Informar dados</p>
+    </div>
+
+    <!--<div class="col-lg steps ">-->
+        <!--<p class="m-0">Criar senha de emissão</p>-->
+    <!--</div>-->
+
+    <div class="col-lg steps ">
+        <p class="m-0">Criar senha de emissão e revogação</p>
+    </div>
+
+    
+    <div class="col-lg steps ">
+        <p class="m-0">Enviar documentos</p>
+    </div>
+
+        <div class="col-lg steps ">
+        <p class="m-0">Agendar videoconferência</p>
+    </div>
+    
+        
+            <div class="col-lg steps ">
+            <p class="m-0">Confirmação das Informações</p>
+        </div>
+        
+    
+</div>
+
+        <div class="row pt-5">
+            <div class="col-lg-7 bg-home hidd">
+                <img src="/public/assets/bg-info.svg" alt="">
+            </div>
+            <div class="col-lg-5">
+                <div class="row">
+                    <div class="col-lg-12 p-0 title">
+                        <h1>Emissão por videoconferência</h1>
+                        <h2 class="mt-3">Siga o passo a passo abaixo para iniciar a emissão.</h2>
+                        <p class="mt-5">Informe os dados para seu Certificado Digital:</p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-12 p-0">
+                        <form>
+                            <div class="form-group">
+                                <label for="inputName">Nome completo</label>
+                                <input type="text" class="form-control form-control1" id="inputName" value="" required="true" placeholder="Digite o nome aqui">
+                            </div>
+
+                            <div class="row" id="nomesocial">
+                                <input type="hidden" name="statusNomeSocial" id="statusNomeSocial" value="1">
+                                                            <div class="col-lg-3 ">
+                                    <div class="form-group custom-control custom-checkbox">
+                                        <input type="checkbox" class="form-check-input custom-control-input" id="checkNomeSocial">
+                                        <label class="form-check-label custom-control-label title" for="checkNomeSocial">
+                                            Nome social
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-9" id="divNomeSocial" style="display: none;">
+                                    <div class="form-group">
+                                        <input type="text" class="form-control form-control1" id="inputNomeSocial" value="" required="false" placeholder="Digite o nome social aqui">
+                                    </div>
+                                </div>
+                                <div class="col-md-12" id="divNomeSocial2" style="display: none;">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <p>O <strong>nome social</strong> é destinado para pessoas transgênero que ainda não fizeram a <strong>atualização da documentação pessoal</strong> e deverá ser usado para dar início ao atendimento. É importante salientar
+                                                que no momento da gravação, será feita a validação dos dados com o nome de registro (nome civil) que  consta no documento apresentado. Isso se faz necessária pelo fato de que este é
+                                                o nome que está presente nas bases de dados dos sistemas que possibilitam a autenticação/acesso com o Certificado Digital.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                                        </div>
+
+                            <div class="form-group">
+                                <label for="inputDataNascimento">Data de nascimento</label>
+                                <input type="date" class="form-control form-control1" id="inputDataNascimento" required="true">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="inputEmail">E-mail</label>
+                                <input type="email" class="form-control form-control1" id="inputEmail" value="" required="true" placeholder="Digite o e-mail aqui">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="inputConfirmarEmail">Confirmar e-mail</label>
+                                <input type="email" class="form-control form-control1" id="inputConfirmarEmail" value="" required="true" placeholder="Confirme o e-mail aqui" data-toggle="tooltip" data-placement="top" title="" data-original-title="Confirme seu email aqui">
+                            </div>
+                                                        <div class="form-group">
+                                <label for="inputEmail">E-mail Adicional</label>
+                                <input type="email" class="form-control form-control1" id="inputEmailcc" value="" required="false" placeholder="Digite o e-mail adicional aqui">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="inputPhone">Número de Celular</label>
+                                <input type="text" accept="" class="form-control form-control1 phone" id="inputPhone" required="true" name="telefone" value="" maxlength="15" placeholder="Digite o número do celular">
+                            </div>
+
+                                                            <div class="form-group">
+                                    <label for="municipio">Estado</label>
+                                    <select name="estados" id="listaEstados" class="custom-select">
+                                        <option value="#">Escolha o Estado ...</option>
+
+                                        
+                                            <option value="AC"> Acre </option>
+
+                                        
+                                            <option value="AL"> Alagoas </option>
+
+                                        
+                                            <option value="AM"> Amazonas </option>
+
+                                        
+                                            <option value="AP"> Amapá </option>
+
+                                        
+                                            <option value="BA"> Bahia </option>
+
+                                        
+                                            <option value="CE"> Ceará </option>
+
+                                        
+                                            <option value="DF"> Distrito Federal </option>
+
+                                        
+                                            <option value="ES"> Espírito Santo </option>
+
+                                        
+                                            <option value="GO"> Goiás </option>
+
+                                        
+                                            <option value="MA"> Maranhão </option>
+
+                                        
+                                            <option value="MT"> Mato Grosso </option>
+
+                                        
+                                            <option value="MS"> Mato Grosso do Sul </option>
+
+                                        
+                                            <option value="MG"> Minas Gerais </option>
+
+                                        
+                                            <option value="PA"> Pará </option>
+
+                                        
+                                            <option value="PB"> Paraíba </option>
+
+                                        
+                                            <option value="PR"> Paraná </option>
+
+                                        
+                                            <option value="PE"> Pernambuco </option>
+
+                                        
+                                            <option value="PI"> Piauí </option>
+
+                                        
+                                            <option value="RJ"> Rio de Janeiro </option>
+
+                                        
+                                            <option value="RN"> Rio Grande do Norte </option>
+
+                                        
+                                            <option value="RO"> Rondônia </option>
+
+                                        
+                                            <option value="RS"> Rio Grande do Sul </option>
+
+                                        
+                                            <option value="RR"> Roraima </option>
+
+                                        
+                                            <option value="SC"> Santa Catarina </option>
+
+                                        
+                                            <option value="SE"> Sergipe </option>
+
+                                        
+                                            <option value="SP"> São Paulo </option>
+
+                                        
+                                            <option value="TO"> Tocantins </option>
+
+                                        
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="municipio">Cidade</label>
+                                    <select name="municipios" id="listaMunicipios" class="custom-select">
+                                        <option value="">Escolha o município ...</option>
+                                    </select>
+                                </div>
+                            
+                            <div class="form-group">
+                                <label for="inputCpf">CPF</label>
+                                <input type="text" class="cpf form-control form-control1" id="inputCpf" placeholder="Digite o CPF aqui" value="" maxlength="14" required="true">
+                            </div>
+
+                            
+                            <input type="hidden" name="cnhStatus" id="cnhStatus" value="1">
+                                                            <div class="form-group">
+                                    <label for="inputCpf">CNH (Nº de registro)</label>
+                                    <input type="text" class="cnh form-control form-control1" id="inputCnh" placeholder="Digite a CNH aqui" value="" maxlength="11" required="1">
+                                </div>
+                            
+                            <div class="form-group" id="cnpj">
+                                <label for="inputCnpj">CNPJ</label>
+                                <input type="text" class="form-control form-control1" id="inputCnpj" placeholder="Digite o CNPJ aqui" maxlength="18" value="" required="true">
+                            </div>
+
+                            <input type="hidden" name="statusOpenBank" id="statusOpenBank" value="0">
+                            <input type="hidden" name="isSSL" id="isSSL" value="">
+                            
+                            <div class="row">
+                                <div class="col-lg-6">
+                                    <a href="/site/emissao-online">
+                                        <button type="button" class="form-control btn btn-secondary">Voltar</button>
+                                    </a>
+                                </div>
+                                <div class="col-lg-6">
+                                    <button type="button" id="btn-continuar-informar-dados" class="form-control btn btn-success">Continuar</button>
+                                </div>
+                            </div>
+                            <input type="text" id="token" value="" style="display: none;">
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script type="text/javascript">
+    var ativo = true;
+    var emailCpfValidationActive = true;
+
+    if (ativo) {
+        var estados = document.getElementById("listaEstados");
+        var idmunicipio = document.getElementById("listaMunicipios");
+
+        estados.addEventListener("change", function() {
+            sessionStorage.setItem("idmunicipio", "");
+            if (estados.value == "#") {
+                sessionStorage.removeItem('estado');
+                sessionStorage.removeItem('idmunicipio');
+            } else {
+                sessionStorage.setItem("estado", estados.value);
+            }
+        })
+
+        idmunicipio.addEventListener("change", function() {
+            sessionStorage.setItem("idmunicipio", idmunicipio.value);
+        });
+
+        $("#listaEstados").change(function(e) {
+            e && e.preventDefault();
+            e.stopPropagation();
+
+            listarEstadosECidades(ativo);
+        });
+    }
+
+    function formatCPF(value) {
+
+        switch (true) {
+        case value.length <= 3:
+            return value;
+        case value.length <= 6:
+            return value.replace(/(\d{3})(\d{0,3})/, '$1.$2');
+        case value.length <= 9:
+            return value.replace(/(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3');
+        default:
+            return value.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
+    }
+    
+
+  }
+
+    $(document).ready(function () {
+        sessionStorage.removeItem('estado');
+        sessionStorage.removeItem('idmunicipio');
+
+        $('#inputCpf').on('input', function () {
+            var inputValue = $(this).val().replace(/\D/g, ''); // Remove caracteres não numéricos
+            var formattedValue = formatCPF(inputValue);
+            $(this).val(formattedValue);
+        });
+
+        var cleave = new Cleave('#inputCpf', {
+            delimiters: ['.', '.', '-'],
+            blocks: [3, 3, 3, 2],
+            uppercase: true
+        });
+        
+        var cleave = new Cleave('#inputPhone', {
+            phone: true,
+            phoneRegionCode: 'BR'
+        });
+
+        let inputCnpj = document.getElementById('inputCnpj');
+        if (inputCnpj) {
+
+            var cleave = new Cleave('#inputCnpj', {
+                delimiters: ['.', '.', '/', '-'],
+                blocks: [2, 3, 3, 4, 2],
+                uppercase: true
+            });
+
+        }
+
+        if (getCodigoAceiteInSessionStorage() === null) {
+            modalPoliticaPrivacidade();
+        }
+
+        // Remover Espaços / Habilitar tooltip / bloquear colar
+        $('#inputEmail').keyup(function() {
+            $('#inputEmail').val($.trim($('#inputEmail').val()));
+        });
+
+        $('#inputConfirmarEmail').keyup(function() {
+            $('#inputConfirmarEmail').val($.trim($('#inputConfirmarEmail').val()));
+        });
+
+        $(function() {
+            $('[data-toggle="tooltip"]').tooltip()
+        });
+
+        $("#inputConfirmarEmail").on('paste', function(e) {
+            e.preventDefault();
+            Toast.fire({
+                type: "warning",
+                title: "Proibido colar. Por favor, digite.",
+            });
+        });
+
+    });
+
+    var produto = {"idproduto":"264","nome":"ACS PJ A1 V5","tipo":"J","perfiliti":"A1 PJ","validade":"12","sequencia":"1","itemSequencia":null,"isExtProdutoAc":0,"extProduto":"10314","extProdutoAc":"0","campo1":null,"campo2":null,"campo3":null,"isOpenBanking":"0","isACRFB":false,"negPrioritaria":null,"dataInicoVigencia":null,"dataFimVigencia":null,"numNegociacao":null,"negPrioritariaRegra":null,"qtdvendida":"1"};
+    var produtosFluxoRFB = null;
+
+    let tipoProduto = 'F';
+
+    if (!!produto) {
+        if (produto.tipo == 'F' && tipoProduto == 'F') {
+            document.getElementById('cnpj').outerHTML = "";
+        }
+    }
+
+    $("#btn-continuar-informar-dados").on('click', function(e) {
+        e && e.preventDefault();
+        e.stopPropagation();
+
+        informarDados(ativo);
+    });
+
+    $("#checkCnh").on('click', function() {
+        if ($(this).is(":checked")) {
+            $('#divCnh').css('display', 'block');
+            $("#cnhStatus").val("1");
+        } else {
+            $('#divCnh').css('display', 'none');
+            $("#cnhStatus").val(null);
+        }
+    });
+
+    $(".cnh").keyup(function(e) {
+        if (/\D/g.test(this.value)) {
+            this.value = this.value.replace(/\D/g, '');
+        }
+    });
+
+    $('#divNomeSocial').css('display', 'none');
+    $('#divNomeSocial2').css('display', 'none');
+
+    $("#checkNomeSocial").on('click', function() {
+        if ($(this).is(":checked")) {
+            $('#divNomeSocial').css('display', 'block');
+            $('#divNomeSocial2').css('display', 'block');
+            $("#checkNomeSocial").val("1");
+        } else {
+            $('#divNomeSocial').css('display', 'none');
+            $('#divNomeSocial2').css('display', 'none');
+            $("#checkNomeSocial").val(null);
+        }
+    });
+
+</script>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light" style="margin-top: 18vh">
+        <div class="container">
+            <ul class="navbar-nav ml-auto nav-items-bottom">
+                <li class="nav-item">
+                    <a class="nav-link" style="cursor: default;">
+                        v2.120.3                        AC                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" style="cursor: default;">Soluti Certificação Digital. 2010-2026</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+
+
+</body></html>

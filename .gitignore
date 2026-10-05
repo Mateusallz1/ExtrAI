@@ -4,9 +4,24 @@ __pycache__/
 .ruff_cache/
 *.py[cod]
 .env
+.env.*
 .uv-cache/
 .uv-python/
 logs/
 src/data/
 tmp/
 test-results/
+
+# Certificados digitais e chaves privadas
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+*.cer
+
+# Pastas de documentos reais e uploads locais
+docs/real/
+docs/documentos/
+uploads/
+scratch/
