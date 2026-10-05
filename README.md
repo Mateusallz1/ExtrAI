@@ -1,4 +1,4 @@
-# ExtrAI 🚀
+# ExtrAI
 
 > **Automação inteligente, privativa e homologada para extração de documentos brasileiros (RG e CNH) e autopreenchimento de portais de Certificação Digital (ICP-Brasil).**
 
@@ -8,12 +8,12 @@
 [![PydanticAI](https://img.shields.io/badge/PydanticAI-Multimodal-purple.svg)](https://ai.pydantic.dev/)
 [![Chrome Extension](https://img.shields.io/badge/Chrome_Extension-Manifest_V3-4285F4.svg?logo=googlechrome)](https://developer.chrome.com/docs/extensions/)
 [![Playwright](https://img.shields.io/badge/Playwright-E2E_Tests-45ba4b.svg?logo=playwright)](https://playwright.dev/)
-[![LGPD](https://img.shields.io/badge/LGPD-Privacy_by_Design-green.svg)](#-segurança-da-informação-e-privacidade-lgpd)
-[![Tests Passing](https://img.shields.io/badge/Tests-219%20passed-success.svg)](#-testes-e-garantia-de-qualidade)
+[![LGPD](https://img.shields.io/badge/LGPD-Privacy_by_Design-green.svg)](#seguranca-da-informacao-e-privacidade-lgpd)
+[![Tests Passing](https://img.shields.io/badge/Tests-219%20passed-success.svg)](#testes-e-garantia-de-qualidade)
 
 ---
 
-## 🎯 Cenário e Propósito do Projeto
+## Cenário e Propósito do Projeto
 
 O **ExtrAI** é uma solução de engenharia desenvolvida para automatizar o pipeline de extração de dados e preenchimento cadastral no ecossistema de Certificação Digital (**ICP-Brasil** — Soluti, Certisign, Valid, Serasa, Safeweb). O sistema substitui a transcrição manual de documentos de identificação (RG e CNH) por extração multimodal com IA e injeção assistida no navegador via extensão Manifest V3.
 
@@ -36,7 +36,7 @@ O **ExtrAI** é uma solução de engenharia desenvolvida para automatizar o pipe
 
 ---
 
-## 📊 Impacto Operacional e Métricas de Desempenho
+## Impacto Operacional e Métricas de Desempenho
 
 O comparativo abaixo reflete a medição em ambiente real de videoconferência:
 
@@ -46,7 +46,7 @@ O comparativo abaixo reflete a medição em ambiente real de videoconferência:
 | **Digitação de 10 campos no portal** | ~120 s | < 1 s | **Instantâneo** |
 | **Confirmação de e-mail (com bloqueio de colar)** | ~45 s | 0 s (preenchimento duplo automático) | **100% automatizado** |
 | **Dupla conferência contra erros de digitação** | ~60 s | ~10 s (bate-olho de conferência) | **83% de redução** |
-| **Tempo Total por Atendimento** | **~5 min 30 s** | **~15 segundos** | **🚀 95,4% mais rápido** |
+| **Tempo Total por Atendimento** | **~5 min 30 s** | **~15 segundos** | **95,4% mais rápido** |
 
 ### Projeção de Produtividade (Régua de 10 Atendimentos / Semana):
 - **Por Semana (10 emissões):** de 55 minutos para apenas **2,5 minutos** (~52 minutos livres).
@@ -55,7 +55,7 @@ O comparativo abaixo reflete a medição em ambiente real de videoconferência:
 
 ---
 
-## ✨ Funcionalidades Principais
+## Funcionalidades Principais
 
 ### 1. Extrator Web Inteligente
 - **Processamento Multimodal com PydanticAI:** Extração de PDFs (multifolhas ou escaneados) e imagens (`.jpg`, `.jpeg`, `.png`, `.webp` até 15 MB) usando Google Gemini 3.5 Flash-Lite com orçamento de latência estrito.
@@ -76,7 +76,7 @@ O comparativo abaixo reflete a medição em ambiente real de videoconferência:
 
 ---
 
-## 🔒 Segurança da Informação e Privacidade (LGPD)
+## Segurança da Informação e Privacidade (LGPD)
 
 O ExtrAI foi construído sob o princípio de **Privacy by Design & Zero Trust Local**:
 
@@ -92,11 +92,11 @@ O ExtrAI foi construído sob o princípio de **Privacy by Design & Zero Trust Lo
 
 ---
 
-## 🏛️ Arquitetura do Sistema
+## Arquitetura do Sistema
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                          FLUXO OPERACIONAL EXCEL                       │
+│                        FLUXO OPERACIONAL EXCEL                         │
 └────────────────────────────────────────────────────────────────────────┘
 
   [DOCUMENTO (RG / CNH)]
@@ -129,7 +129,7 @@ O ExtrAI foi construído sob o princípio de **Privacy by Design & Zero Trust Lo
 
 ---
 
-## 🛠️ Stack Tecnológico
+## Stack Tecnológico
 
 | Camada | Tecnologias Utilizadas |
 | :--- | :--- |
@@ -142,7 +142,7 @@ O ExtrAI foi construído sob o princípio de **Privacy by Design & Zero Trust Lo
 
 ---
 
-## 🔌 Contrato da API
+## Contrato da API
 
 ### 1. `GET /api/health`
 Retorna a saúde do serviço local e confirmação da configuração do provedor.
@@ -191,7 +191,7 @@ Endpoint consumido pela Extensão do Chrome via loopback. Retorna os dados da ex
 
 ---
 
-## 🚀 Como Executar o Projeto
+## Como Executar o Projeto
 
 ### Pré-requisitos
 - [Python 3.11+](https://www.python.org/)
@@ -235,7 +235,7 @@ Acesse a aplicação no navegador em: **`http://127.0.0.1:8788`**
 2. No canto superior direito, ative a chave **Modo do desenvolvedor**.
 3. Clique no botão **Carregar sem compactação** (*Load unpacked*).
 4. Selecione a pasta `extension/` localizada na raiz do projeto `ExtrAI`.
-5. Fixe o ícone do **ExtrAI** na barra de ferramentas do seu navegador!
+5. Fixe o ícone do **ExtrAI** na barra de ferramentas do seu navegador.
 
 ---
 
@@ -245,11 +245,11 @@ Acesse a aplicação no navegador em: **`http://127.0.0.1:8788`**
 2. Os dados serão extraídos e validados na tela.
 3. Acesse a aba do portal da Certificadora (ex: videoconferência Soluti).
 4. Abra o popup da extensão: confira os dados extraídos, informe o E-mail e CNPJ (se PJ) e clique em **"Preencher Formulário"** (ou simplesmente tecle **`Alt + P`**).
-5. O formulário é preenchido e validado instantaneamente!
+5. O formulário é preenchido e validado instantaneamente.
 
 ---
 
-## 🧪 Testes e Garantia de Qualidade
+## Testes e Garantia de Qualidade
 
 O projeto adota uma política rigorosa de engenharia com **219 testes automatizados** cobrindo desde regras semânticas de negócio até a injeção em formulários reais via Playwright, sem consumir tokens de API:
 
@@ -279,7 +279,7 @@ uv run python scripts/check_harness.py
 
 ---
 
-## 🗺️ Mapa de Conhecimento e Governança
+## Mapa de Conhecimento e Governança
 
 Para detalhes aprofundados sobre decisões arquiteturais e operacionais:
 - [ARCHITECTURE.md](ARCHITECTURE.md): Estrutura de camadas, fluxo de dados e limites de dependência.
@@ -290,6 +290,6 @@ Para detalhes aprofundados sobre decisões arquiteturais e operacionais:
 
 ---
 
-## 📄 Licença
+## Licença
 
 Este projeto é disponibilizado sob a licença [MIT](LICENSE).
