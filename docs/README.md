@@ -1,15 +1,15 @@
-# Mapa de conhecimento do projeto
+# Project Knowledge Map
 
-Esta pasta é o sistema de registro das decisões e dos critérios operacionais do
-piloto. O `AGENTS.md` aponta para estes documentos; não transforme o arquivo de
-entrada em uma enciclopédia.
+This directory is the system of record for operational criteria and architectural
+decisions of the project. `AGENTS.md` points to these documents; do not turn the
+entry point into an encyclopedia.
 
-| Documento | Propósito | Estado |
+| Document | Purpose | Status |
 | --- | --- | --- |
-| [QUALITY.md](QUALITY.md) | Gates, aceite e cobertura | atual |
-| [RELIABILITY.md](RELIABILITY.md) | Operação, limites e falhas | atual |
-| [SECURITY.md](SECURITY.md) | Privacidade e segurança | atual |
-| [exec-plans/README.md](exec-plans/README.md) | Planos de execução versionados | atual |
+| [QUALITY.md](QUALITY.md) | Gates, acceptance criteria, and test coverage | current |
+| [RELIABILITY.md](RELIABILITY.md) | Operations, limits, and failure modes | current |
+| [SECURITY.md](SECURITY.md) | Privacy and information security | current |
+| [exec-plans/README.md](exec-plans/README.md) | Versioned execution plans | current |
 
-Atualize o documento do domínio quando uma decisão se repetir, quando um teste
-passar a proteger uma regra ou quando o comportamento real mudar.
+Update domain documentation whenever a decision recurs, a test codifies an
+invariant, or runtime behavior changes.

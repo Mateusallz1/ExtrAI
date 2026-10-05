@@ -1,12 +1,12 @@
-# Planos de execução
+# Execution Plans
 
-Planos de mudanças complexas ficam versionados nesta pasta para que o agente
-consiga recuperar objetivo, decisões, progresso e critérios de conclusão.
+Plans for complex modifications are versioned in this directory so that agents and
+engineers can recover goals, decisions, progress, and completion criteria.
 
-- `active/`: planos em andamento.
-- `completed/`: planos concluídos.
-- Um plano deve registrar escopo, não-objetivos, etapas, riscos, validações e
-  decisão final.
+- `active/`: in-progress execution plans.
+- `completed/`: archived, finished execution plans.
+- A plan must document scope, non-goals, milestones, risks, validations, and
+  final decisions.
 
-Alterações pequenas podem ser conduzidas diretamente pelo `AGENTS.md`; não crie
-um plano apenas para uma correção mecânica isolada.
+Small, mechanical changes can be guided directly via `AGENTS.md`; do not create
+a plan for an isolated routine edit.

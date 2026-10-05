@@ -1,6 +1,6 @@
-# Qualidade
+# Quality
 
-## Gates obrigatórios
+## Required Gates
 
 ```powershell
 uv run pytest
@@ -11,70 +11,51 @@ uv pip check
 node --check src/doc_extractor_pydantic/static/app.js
 ```
 
-O check de estrutura do harness é executado com:
+The harness consistency check is run with:
 
 ```powershell
 uv run python scripts/check_harness.py
 ```
 
-Os testes de navegador exigem o Chromium do Playwright uma única vez:
+Browser tests require Playwright's Chromium binary (installed once):
 
 ```powershell
 uv run playwright install chromium
 ```
 
-Sem ele, `tests/test_frontend_dom.py` falha em vez de passar em silêncio.
+Without it, `tests/test_frontend_dom.py` fails rather than passing silently.
 
-## Critérios de aceite
+## Acceptance Criteria
 
-- Upload inválido é rejeitado antes do provider.
-- Imagens precisam ser legíveis, estáticas e respeitar o limite de pixels antes
-  de carregar os dados. Apenas uma assinatura válida não basta.
-- Corpo acima do limite é recusado com 413 antes de o multipart ser processado.
-- PDF precisa ser legível e conter entre uma página e o limite de páginas.
-- O PDF é aberto uma única vez por requisição.
-- Nenhuma imagem é decodificada ou codificada em base64 antes do corte final.
-- A prévia lê somente os XObjects selecionados: imagens inline não são
-  decodificadas como efeito colateral. O limite de quatro conta tentativas.
-- O stream do PDF é interpretado incrementalmente até o limite de operações,
-  sem materializar a lista inteira primeiro.
-- O processamento local roda em processo cancelável e não bloqueia o event loop
-  durante parsing/decodificação. Timeout e cancelamento encerram o filho.
-- Logs do parser não podem conter o marcador privado de um PDF sintético malformado.
-- Saída inválida é removida e acompanhada de aviso, inclusive quando o campo não
-  pertence ao tipo identificado.
-- Aviso exclusivamente sobre um campo que o tipo identificado não possui é
-  descartado. Avisos mistos preservam a informação sobre campos aplicáveis,
-  como um alerta que menciona CPF e categoria em um RG.
-- A interface não mistura resultados de arquivos diferentes.
-- A extração inicia automaticamente quando um arquivo válido é selecionado, arrastado ou colado. O botão principal atua no envio/tentativa e se adapta para "Limpar análise" com resultados visíveis, mantendo reenvio via atalho (Ctrl+Enter).
-- Quando existirem imagens incorporadas, a frente principal aparece em detalhe
-  ampliável e os demais blocos aparecem como miniaturas.
-- Copiar dados funciona ou exibe uma orientação manual amigável.
-- CPF/datas incompletos são sinalizados ao encerrar a edição. Exportação manual
-  continua permitida, com aviso explícito de inconsistência.
-- CSV neutraliza prefixos de fórmula, inclusive após espaços/caracteres de controle.
-- Imagens ficam integralmente enquadradas no zoom inicial e avisos permanecem
-  acessíveis por rolagem em viewports estreitos ou de pouca altura.
-- Falha transitória ou degradação de tempo do modelo principal aciona fallback automático para os modelos configurados.
-- Cada modelo tem até três invocações, compartilhadas por retries de saída e de
-  transporte. Uso inclui respostas anteriores e fallback; reservas só são
-  construídas quando necessárias.
-- Cancelar a tarefa HTTP cancela e aguarda seus filhos antes de liberar a vaga;
-  falha/cancelamento da leitura também fecha o upload.
-- Testes não fazem chamadas reais ao Gemini ou a outro provider.
+- Invalid uploads are rejected before reaching the provider.
+- Images must be readable, static, and within pixel boundaries before loading data. A valid signature alone is not sufficient.
+- Request bodies exceeding limits are rejected with 413 before the multipart body is processed.
+- PDFs must be readable and contain between 1 and the maximum page limit.
+- The PDF is opened only once per request.
+- No image is decoded or encoded in base64 before the final crop.
+- Previews only inspect selected XObjects: inline images are not decoded as side effects. A limit of 4 attempts is enforced.
+- The PDF content stream is parsed incrementally up to the operation limit, without materializing the whole list up front.
+- Local processing runs inside a cancellable worker process and does not block the event loop during parsing/decoding. Timeout or cancellation terminates the child.
+- Parser logs must not leak private markers from malformed synthetic PDFs.
+- Invalid outputs are removed and accompanied by warnings, including when a field does not belong to the identified document kind.
+- Warnings pertaining exclusively to fields that the identified document kind does not possess are discarded. Mixed warnings preserve information on applicable fields.
+- The interface never mixes results across different files.
+- Extraction begins automatically when a valid file is selected, dropped, or pasted. The main action button adapts between submit/retry and "Clear analysis" when results are visible, supporting resubmission via Ctrl+Enter.
+- When embedded images exist, the primary front page appears in zoomable detail, and other elements appear as thumbnails.
+- Clipboard copy works or presents clear manual instructions.
+- Incomplete CPF/dates are flagged upon ending input editing. Manual export remains permitted with explicit inconsistency warnings.
+- CSV exports sanitize formula injection prefixes, even after whitespace/control characters.
+- Images fit entirely within the initial zoom viewport, and warnings remain scrollable on narrow viewports.
+- Transient model failure or latency degradation triggers automatic fallback to configured models.
+- Each model is allowed up to 3 invocations, shared across output and transport retries. Usage includes previous responses and fallback; backup models are instantiated lazily on demand.
+- Cancelling the HTTP task terminates and awaits child processes before releasing concurrency slots; read failure/cancellation also closes the upload.
+- Automated tests make no live calls to Gemini or any remote provider.
 
-## Limites atuais
+## Current Testing Scope and Limitations
 
-- Não existe teste automatizado de acurácia contra documentos reais.
-- Testes de provider são substituídos por agente falso e configuração local.
-- A validação com `node` é apenas sintática. O comportamento é coberto por
-  `tests/test_frontend_dom.py`, que roda a página real em Chromium headless e
-  intercepta `/api/extract`: render de campos, avisos, cancelamento de
-  requisição, erro da API, viewport estreito e cópia.
-- `tests/test_frontend.py` continua verificando fragmentos do HTML. Serve como
-  rede de segurança barata, não como prova de comportamento.
-- Não há teste de aparência: cor, espaçamento e legibilidade continuam sendo
-  conferidos a olho no navegador local.
-- O foco automático em regiões específicas dos campos ainda não faz parte do
-  visualizador atual.
+- There are no automated accuracy benchmarks against real documents.
+- Provider tests are isolated with mock agents and local configurations.
+- `node` validation is strictly syntactic. Runtime behavior is verified by `tests/test_frontend_dom.py` and `tests/test_frontend_extension.py`, running headless Chromium against mocked routes.
+- `tests/test_frontend.py` verifies HTML fragments as a fast safety net, not behavioral proof.
+- There is no automated visual regression testing; layout, color, and spacing are verified locally in the browser.
+- Automatic zooming to field-specific bounding boxes is not part of the current viewer.

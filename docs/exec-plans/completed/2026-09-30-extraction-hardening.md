@@ -1,85 +1,85 @@
-# Correções de privacidade, confiabilidade e conferência
+# Privacy, Reliability, and Verification Hardening
 
-## Objetivo e escopo
+## Goal and Scope
 
-Corrigir os cenários reproduzidos na revisão do commit `5841ea8`: logs do parser
-com conteúdo documental, limites incompletos de PDF, retries e uso acumulado,
-cancelamento da tarefa HTTP, construção antecipada de fallbacks, perda de avisos
-mistos, validação manual incompleta, CSV interpretável como fórmula e corte de
-documentos/avisos na interface. Rejeitar também imagens estruturalmente inválidas.
+Fix the regression scenarios reproduced during review of commit `5841ea8`: parser
+logs leaking document content, incomplete PDF limits, retry budget accounting,
+HTTP task cancellation leaks, premature fallback instantiation, dropped mixed
+warnings, incomplete manual validation, formula-interpretable CSV exports, and
+document/warning clipping in the UI. Also reject structurally invalid images.
 
-Manter o contrato da API, o modelo padrão e seu thinking mínimo, loopback na porta
-8788, revisão humana e ausência de persistência documental própria.
+Maintain API contracts, default model and minimal thinking level, loopback on
+port 8788, human review invariants, and zero document persistence.
 
-Não inclui novos providers, documentos reais, migração da interface, autenticação
-de produção, commit, push, merge ou deploy.
+Does not include new providers, real documents, UI migration, production
+authentication, commit, push, merge, or deployment.
 
-## Etapas
+## Milestones
 
-1. Registrar o plano e trabalhar na branch local `fix/extraction-hardening`.
-2. Aplicar as correções do backend e testes sintéticos de regressão.
-3. Aplicar as correções da interface e testes comportamentais no Chromium.
-4. Atualizar a documentação dos domínios com as decisões finais e seus limites.
-5. Executar harness e todos os gates; revisar diff, staged, untracked e ignored.
-6. Mover este plano para `completed/` após cumprir os critérios de conclusão.
+1. Register plan and work on local branch `fix/extraction-hardening`.
+2. Apply backend fixes and synthetic regression tests.
+3. Apply UI fixes and behavioral tests in Chromium.
+4. Update domain documentation with final decisions and operational limits.
+5. Execute harness and all quality gates; review diff, staged, untracked, and ignored files.
+6. Move this plan to `completed/` upon meeting all completion criteria.
 
-## Decisões e riscos
+## Decisions and Risks
 
-- Controles de log precisam incluir a dependência de PDF, sem registrar mensagens
-  ou valores provenientes do arquivo.
-- Um timeout de coroutine não interrompe parsing/decodificação síncronos. O trabalho
-  local será isolado em processo cancelável, com comunicação somente em memória.
-- Os limites devem atuar antes do parsing/decoding caro e contar tentativas, não
-  somente prévias retornadas com sucesso.
-- Retries internos e externos devem compartilhar um orçamento; o uso informado
-  precisa acumular execuções, sem prometer equivalência com a cobrança do provider.
-- O orçamento atua em `Model.request`. Retries internos do SDK OpenAI são
-  desativados para não multiplicar requisições HTTP abaixo desse limite.
-- Criação do worker e espera de IPC/cleanup usam threads. O cleanup aguarda a
-  criação pelo SO antes de encerrar o filho, preservando a responsividade.
-- Não existe teto rígido de memória do SO. O limite de stream ainda é aplicado
-  após descompressão; CPU documental fica isolada no filho cancelável.
-- Edição manual continua permitida: valores incompletos serão sinalizados ao
-  encerrar a edição; exportação não será silenciosa quando houver inconsistências.
-- A revisão não autoriza chamadas reais ao provider nem leitura de segredos.
+- Logging controls must encompass PDF dependencies without recording messages
+  or values derived from file content.
+- A coroutine timeout does not interrupt synchronous parsing/decoding. Local work
+  is isolated in a cancellable worker process with memory-only IPC.
+- Resource limits must enforce bounds before expensive parsing/decoding and count
+  attempts, not only successful previews.
+- Internal and external retries must share an invocation budget; reported usage
+  accumulates executions without claiming strict equivalence to provider billing.
+- Budget enforcement applies at `Model.request`. OpenAI SDK internal retries are
+  disabled to prevent multiplying HTTP requests under the hood.
+- Worker spawning and IPC cleanup run on threads. Cleanup awaits process registration
+  by the OS before terminating the child, keeping the event loop responsive.
+- There is no hard OS memory ceiling. Stream limits apply after decompression;
+  document CPU consumption is isolated in the cancellable worker.
+- Manual editing remains allowed: incomplete values are flagged upon finishing
+  edits; CSV exports are not silent when inconsistencies exist.
+- Code review does not authorize live provider calls or secret reads.
 
-## Validação e conclusão
+## Validation and Completion Criteria
 
-Usar somente documentos e respostas sintéticos. Exercitar logs de PDF malformado,
-parsing/decoding limitado, legibilidade de imagens, timeout/cancelamento local,
-cleanup HTTP, retries/uso acumulado/fallback, avisos mistos e os cenários da UI.
+Use synthetic documents and mocked responses only. Exercise malformed PDF logs,
+bounded parsing/decoding, image readability, local timeout/cancellation, HTTP
+cleanup, retries/accumulated usage/fallback, mixed warnings, and UI workflows.
 
-Executar `uv run python scripts/check_harness.py`, pytest, Ruff, compileall,
-`uv lock --check`, `uv pip check` e `node --check` do frontend. Não instalar ou
-sincronizar dependências sem necessidade; usar o ambiente local e cache local.
+Run `uv run python scripts/check_harness.py`, pytest, Ruff, compileall,
+`uv lock --check`, `uv pip check`, and frontend `node --check`. Do not install
+or upgrade dependencies unnecessarily; use local environments and caches.
 
-Conclusão exige todos os gates aprovados, revisão do diff e registro dos riscos
-residuais. Aprovação para operações Git externas continua separada.
+Completion requires all quality gates passing, diff review, and documented
+residual risks. External Git decisions remain separate.
 
-## Resultado e validação final
+## Results and Final Validation
 
-- Concluído na branch `fix/extraction-hardening`, com base em `5841ea8`.
-- Os nove cenários da revisão e a validação de legibilidade de imagens foram
-  corrigidos, mantendo o contrato HTTP e os invariantes do piloto.
-- A suíte completa passou: **203 testes em 16,84 segundos**, incluindo worker real,
-  cancelamento asyncio/AnyIO, transporte HTTP simulado e Chromium.
-- Harness, Ruff, compileall, lockfile, dependências, sintaxe JavaScript e revisão
-  de whitespace passaram. Nenhuma dependência foi instalada ou atualizada.
-- Diff, staged, untracked e ignored foram revisados. Staged vazio; arquivos novos
-  pertencem à implementação/plano/testes; caches técnicos continuam ignorados.
-- Revisão independente do diff integrado não encontrou pendência material.
-- Nenhum provider real ou documento real foi usado. Nenhum commit, push, merge ou
-  deploy foi realizado; essas decisões continuam separadas.
-- A suíte inicial revelou interferência do event loop da sessão síncrona do
-  Playwright nos novos testes de provider. Esses testes agora usam um loop próprio
-  em thread; a execução com navegador e provider no mesmo processo foi validada.
+- Completed on branch `fix/extraction-hardening`, based on `5841ea8`.
+- All nine review scenarios and image readability validations were resolved,
+  preserving the HTTP contract and pilot invariants.
+- Full test suite passed: **203 tests in 16.84 seconds**, covering worker processes,
+  asyncio/AnyIO cancellation, simulated HTTP transports, and headless Chromium.
+- Harness, Ruff, compileall, lockfile checks, dependency checks, JavaScript syntax,
+  and whitespace reviews passed cleanly. No dependencies were installed or modified.
+- Diff, staged, untracked, and ignored files were reviewed. Staging was clean; new
+  files belong strictly to implementation/plan/tests; caches remain ignored.
+- Independent diff review revealed no material defects.
+- Zero real providers or real documents were accessed. No commit, push, merge,
+  or deployment was executed; decisions remain distinct.
+- Initial suite revealed Playwright synchronous event loop interference with new
+  provider tests. These tests now run in their own thread event loop; cohabitation
+  between browser and provider tests was validated.
 
-## Riscos residuais
+## Residual Risks
 
-- Descompressão pode alcançar o teto interno do `pypdf` antes do corte de 8 MB;
-  não há limite rígido de memória do SO. O worker descartável isola CPU e prazo.
-- A criação de processo pelo SO não é preemptível; o cleanup aguarda seu resultado
-  em thread antes de encerrar o filho, mantendo o event loop responsivo.
-- Helpers internos de `pypdf` exigem as regressões atuais em atualizações do lock.
-- Tokens indisponíveis em respostas de erro não são estimados. Acurácia real e
-  disponibilidade/latência dos providers não foram avaliadas nesta mudança.
+- Decompression may reach `pypdf`'s internal safety ceiling before the 8 MB page
+  cutoff; no OS hard memory ceiling exists. The disposable worker bounds CPU and time.
+- Process spawning by the OS is non-preemptible; cleanup awaits process spawn
+  completion on a thread before terminating, preserving event loop responsiveness.
+- Internal `pypdf` helpers require existing regression coverage across lock updates.
+- Tokens unavailable in error responses are not estimated. Real-world accuracy,
+  availability, and latency of external providers were not measured in this change.
