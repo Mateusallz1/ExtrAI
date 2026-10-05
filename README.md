@@ -96,7 +96,7 @@ O ExtrAI foi construído sob o princípio de **Privacy by Design & Zero Trust Lo
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        FLUXO OPERACIONAL EXCEL                         │
+│                 FLUXO OPERACIONAL COMPLETO (END-TO-END)                │
 └────────────────────────────────────────────────────────────────────────┘
 
   [DOCUMENTO (RG / CNH)]
