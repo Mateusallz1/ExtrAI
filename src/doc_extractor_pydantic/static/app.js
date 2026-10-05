@@ -1009,6 +1009,7 @@ function clearExtraction() {
   }
   form.reset();
   lastData = null;
+  fetch("/api/last-extraction", { method: "DELETE" }).catch(() => {});
   if (previewUrl) {
     URL.revokeObjectURL(previewUrl);
     previewUrl = null;

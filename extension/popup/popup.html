@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExtrAI — Autopreenchimento</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <img src="../icons/icon-48.png" alt="ExtrAI" class="logo">
+      <span class="title">ExtrAI</span>
+    </div>
+    <div id="connection-status" class="status-badge status-checking" title="Verificando conexão">
+      <span class="status-dot"></span>
+      <span id="connection-text">Verificando...</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <!-- Estado: Offline -->
+    <div id="state-offline" class="state-card hidden">
+      <div class="icon-warning">⚠️</div>
+      <p class="state-msg">ExtrAI offline. Verifique se o servidor local está ativo em <strong>127.0.0.1:8788</strong>.</p>
+      <button id="btn-retry" class="btn-secondary" type="button">Tentar conectar</button>
+    </div>
+
+    <!-- Estado: Vazio / Sem documento -->
+    <div id="state-empty" class="state-card hidden">
+      <div class="icon-empty">📄</div>
+      <p class="state-msg">Nenhum documento analisado recentemente.</p>
+      <a href="http://127.0.0.1:8788" target="_blank" class="btn-secondary link-btn">Abrir ExtrAI</a>
+    </div>
+
+    <!-- Estado: Pronto com dados -->
+    <div id="state-ready" class="state-card hidden">
+      <div class="doc-header">
+        <span id="doc-kind" class="doc-badge">DOCUMENTO</span>
+        <span id="doc-pages" class="doc-meta"></span>
+      </div>
+
+      <div class="fields-list">
+        <div class="field-item" id="field-row-name">
+          <span class="field-label">Nome</span>
+          <span id="field-val-name" class="field-val">—</span>
+        </div>
+        <div class="field-item" id="field-row-cpf">
+          <span class="field-label">CPF</span>
+          <span id="field-val-cpf" class="field-val">—</span>
+        </div>
+        <div class="field-item" id="field-row-birthDate">
+          <span class="field-label">Nascimento</span>
+          <span id="field-val-birthDate" class="field-val">—</span>
+        </div>
+        <div class="field-item" id="field-row-registration">
+          <span class="field-label">Registro / CNH</span>
+          <span id="field-val-registration" class="field-val">—</span>
+        </div>
+      </div>
+
+      <div class="target-domain-row">
+        <span class="target-domain-label">Destino:</span>
+        <span class="target-domain-value" id="target-domain-val">Detectando página...</span>
+      </div>
+
+      <div class="actions">
+        <button id="btn-fill" class="btn-primary" type="button">Preencher Formulário</button>
+      </div>
+      <p id="fill-feedback" class="feedback-msg hidden"></p>
+    </div>
+
+    <!-- Seção de Padrões da Emissão (Configuração Persistida) -->
+    <section class="card-section defaults-section">
+      <div class="section-title-row">
+        <span class="section-title">Dados de Emissão (Padrão)</span>
+        <div class="section-actions">
+          <button type="button" id="btn-save-defaults" class="btn-action-save" title="Salvar dados de emissão">Salvar</button>
+          <button type="button" id="btn-reset-defaults" class="btn-link" title="Restaurar valores de fábrica">Restaurar</button>
+        </div>
+      </div>
+      <div class="defaults-grid">
+        <div class="form-group">
+          <label for="config-email" class="input-label">E-mail do Cliente</label>
+          <input type="email" id="config-email" class="form-input" placeholder="cliente@email.com">
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="config-phone" class="input-label">Telefone / Celular</label>
+            <input type="text" id="config-phone" class="form-input" placeholder="8698163900" maxlength="15">
+          </div>
+          <div class="form-group">
+            <label for="config-cnpj" class="input-label">CNPJ (se PJ)</label>
+            <input type="text" id="config-cnpj" class="form-input" placeholder="00.000.000/0001-00" maxlength="18">
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="config-state" class="input-label">Estado (UF)</label>
+            <select id="config-state" class="form-select">
+              <option value="AC">AC - Acre</option>
+              <option value="AL">AL - Alagoas</option>
+              <option value="AP">AP - Amapá</option>
+              <option value="AM">AM - Amazonas</option>
+              <option value="BA">BA - Bahia</option>
+              <option value="CE">CE - Ceará</option>
+              <option value="DF">DF - Distrito Federal</option>
+              <option value="ES">ES - Espírito Santo</option>
+              <option value="GO">GO - Goiás</option>
+              <option value="MA">MA - Maranhão</option>
+              <option value="MT">MT - Mato Grosso</option>
+              <option value="MS">MS - Mato Grosso do Sul</option>
+              <option value="MG">MG - Minas Gerais</option>
+              <option value="PA">PA - Pará</option>
+              <option value="PB">PB - Paraíba</option>
+              <option value="PR">PR - Paraná</option>
+              <option value="PE">PE - Pernambuco</option>
+              <option value="PI" selected>PI - Piauí</option>
+              <option value="RJ">RJ - Rio de Janeiro</option>
+              <option value="RN">RN - Rio Grande do Norte</option>
+              <option value="RS">RS - Rio Grande do Sul</option>
+              <option value="RO">RO - Rondônia</option>
+              <option value="RR">RR - Roraima</option>
+              <option value="SC">SC - Santa Catarina</option>
+              <option value="SP">SP - São Paulo</option>
+              <option value="SE">SE - Sergipe</option>
+              <option value="TO">TO - Tocantins</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="config-city" class="input-label">Cidade</label>
+            <input type="text" id="config-city" class="form-input" placeholder="Teresina" maxlength="60">
+          </div>
+        </div>
+      </div>
+      <div class="defaults-footer">
+        <span id="defaults-save-indicator" class="defaults-indicator">✓ Salvo no navegador</span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>Atalho: <kbd>Alt+P</kbd> para preencher</span>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

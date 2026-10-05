@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -45,6 +46,9 @@ STATIC_ASSETS = {
 
 
 MAX_REQUEST_BYTES = settings.max_upload_bytes + MULTIPART_OVERHEAD_BYTES
+LAST_EXTRACTION_TTL_SECONDS = 30 * 60
+last_extraction_result: dict | None = None
+last_extraction_timestamp: float = 0.0
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
     "Pragma": "no-cache",
@@ -120,8 +124,10 @@ class LoopbackOnlyMiddleware:
 
         origin = _header(scope, b"origin")
         if origin is not None:
-            host = urlsplit(origin.decode("latin-1")).hostname
-            if not is_loopback(host):
+            origin_str = origin.decode("latin-1")
+            parsed = urlsplit(origin_str)
+            is_ext = parsed.scheme in ("chrome-extension", "moz-extension")
+            if not is_ext and not is_loopback(parsed.hostname):
                 await send_json(send, 403, "Origem não permitida.")
                 return
 
@@ -209,8 +215,22 @@ def _declared_length(scope: Scope) -> int:
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    origin = request.headers.get("origin")
+    is_ext = bool(
+        origin
+        and (origin.startswith("chrome-extension://") or origin.startswith("moz-extension://"))
+    )
+    if request.method == "OPTIONS" and is_ext:
+        response = Response(status_code=204)
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+
     response = await call_next(request)
     response.headers.update(SECURITY_HEADERS)
+    if is_ext:
+        response.headers["Access-Control-Allow-Origin"] = origin
     return response
 
 
@@ -386,7 +406,33 @@ async def extract(request: Request, document: UploadFile = File(...)) -> dict[st
         usage_info.get("outputTokens", 0),
         result.get("modelUsed", settings.model),
     )
+    global last_extraction_result, last_extraction_timestamp
+    last_extraction_result = result
+    last_extraction_timestamp = time.monotonic()
     return result
+
+
+@app.get("/api/last-extraction")
+async def get_last_extraction() -> dict:
+    global last_extraction_result, last_extraction_timestamp
+    if (
+        last_extraction_result is not None
+        and (time.monotonic() - last_extraction_timestamp) > LAST_EXTRACTION_TTL_SECONDS
+    ):
+        last_extraction_result = None
+        last_extraction_timestamp = 0.0
+
+    if last_extraction_result is None:
+        return {"hasData": False, "data": None}
+    return {"hasData": True, "data": last_extraction_result}
+
+
+@app.delete("/api/last-extraction")
+async def clear_last_extraction() -> dict:
+    global last_extraction_result, last_extraction_timestamp
+    last_extraction_result = None
+    last_extraction_timestamp = 0.0
+    return {"status": "cleared"}
 
 
 def run() -> None:

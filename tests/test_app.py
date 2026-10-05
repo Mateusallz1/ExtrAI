@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from io import BytesIO
 
 import pytest
@@ -554,3 +555,74 @@ def test_cancelled_upload_read_closes_document_and_releases_slot(monkeypatch) ->
 
 def test_app_title_is_extrai() -> None:
     assert main_module.app.title == "ExtrAI"
+
+
+def test_last_extraction_endpoint_lifecycle() -> None:
+    c = client()
+    # Ensure clean state
+    del_resp = c.delete("/api/last-extraction")
+    assert del_resp.status_code == 200
+    assert del_resp.json() == {"status": "cleared"}
+
+    # Query when empty
+    get_resp = c.get("/api/last-extraction")
+    assert get_resp.status_code == 200
+    assert get_resp.json() == {"hasData": False, "data": None}
+
+    # Simulate extraction populated
+    main_module.last_extraction_result = {
+        "kind": "cnh",
+        "fields": {
+            "name": {"value": "MARIA DA SILVA", "label": "Nome"},
+            "cpf": {"value": "123.456.789-09", "label": "CPF"},
+        },
+    }
+    main_module.last_extraction_timestamp = time.monotonic()
+
+    # Query when populated
+    get_resp2 = c.get("/api/last-extraction")
+    assert get_resp2.status_code == 200
+    data = get_resp2.json()
+    assert data["hasData"] is True
+    assert data["data"]["fields"]["name"]["value"] == "MARIA DA SILVA"
+
+    # Clear
+    c.delete("/api/last-extraction")
+    get_resp3 = c.get("/api/last-extraction")
+    assert get_resp3.json() == {"hasData": False, "data": None}
+
+
+def test_extension_cors_headers_and_preflight() -> None:
+    c = client()
+    ext_origin = "chrome-extension://abcdefghijklmnop"
+
+    # Preflight OPTIONS
+    options_resp = c.options("/api/last-extraction", headers={"Origin": ext_origin})
+    assert options_resp.status_code == 204
+    assert options_resp.headers["Access-Control-Allow-Origin"] == ext_origin
+    assert "GET" in options_resp.headers["Access-Control-Allow-Methods"]
+
+    # Regular GET with extension origin
+    get_resp = c.get("/api/last-extraction", headers={"Origin": ext_origin})
+    assert get_resp.status_code == 200
+    assert get_resp.headers["Access-Control-Allow-Origin"] == ext_origin
+
+
+def test_last_extraction_ttl_expiration(monkeypatch) -> None:
+    c = client()
+    main_module.last_extraction_result = {
+        "kind": "cnh",
+        "fields": {"name": {"value": "MARIA DA SILVA"}},
+    }
+    main_module.last_extraction_timestamp = time.monotonic()
+    assert c.get("/api/last-extraction").json()["hasData"] is True
+
+    # Advance monotonic time past TTL (30 minutes)
+    past_time = time.monotonic() + 31 * 60
+    monkeypatch.setattr(time, "monotonic", lambda: past_time)
+
+    # Next fetch should show expired and return hasData: False
+    expired_resp = c.get("/api/last-extraction").json()
+    assert expired_resp["hasData"] is False
+    assert expired_resp["data"] is None
+
