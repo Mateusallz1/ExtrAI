@@ -1,58 +1,59 @@
-# Segurança e privacidade
+# Security and Privacy
 
-## Fluxo de dados
+## Data Flow
 
-O arquivo recebido é processado pelo backend e enviado ao provider multimodal
-configurado. Em PDFs com imagens incorporadas, a imagem principal também é
-enviada como parte complementar da mesma análise. A aplicação não cria
-armazenamento permanente próprio, mas o
-provider externo possui suas próprias políticas de retenção e uso de dados.
+The uploaded document is parsed by the backend and dispatched to the configured
+multimodal provider. For PDFs containing embedded images, the primary image is
+also transmitted as complementary context for the same extraction request. The
+application does not maintain any persistent storage of its own; however, the
+external AI provider operates under its own data retention and usage policies.
 
-Não use documentos reais na camada gratuita sem avaliar essa política e obter a
-autorização adequada.
+Never process real identification documents on public/free tiers without
+reviewing provider terms and obtaining explicit operational authorization.
 
-## Regras
+## Security Rules
 
-- Nunca colocar API keys no código, no Git, em testes ou na documentação.
-- Nunca enviar o nome do arquivo ao modelo.
-- Nunca registrar conteúdo, campos extraídos, imagens, PDFs ou nomes de arquivo.
-- O logger de `pypdf` é suprimido antes do parsing, pois seus diagnósticos podem
-  incluir tokens do conteúdo. Essa regra tem regressão com PDF sintético malformado.
-- Responder com `Cache-Control: no-store` e headers de proteção para evitar cache
-  ou interpretação indevida no navegador.
-- Manter CSS e JavaScript em arquivos próprios: a CSP não usa `'unsafe-inline'`
-  e define `frame-ancestors 'none'`. Não reintroduzir `<style>`, `<script>` ou
-  atributo `style` no HTML.
-- Servir apenas os arquivos estáticos declarados em `STATIC_ASSETS`, nunca um
-  caminho vindo da URL.
-- Fechar explicitamente o upload ao terminar a requisição para liberar qualquer
-  spool temporário usado pelo parser multipart.
-- Usar `textContent` na interface para dados vindos do modelo.
-- Manter a revisão humana antes de qualquer uso operacional.
-- Usar apenas arquivos sintéticos nos testes automatizados.
-- Parsing/decodificação local ocorre em um processo descartável. A comunicação é
-  feita por pipe em memória, passando somente extensão e bytes; timeout ou
-  cancelamento encerra o processo e fecha o pipe antes de liberar a vaga.
-- Arquivos CSV neutralizam conteúdo interpretável como fórmula. Isso não altera
-  o valor original exibido ou exportado em JSON.
+- Never commit API keys to source code, Git history, test fixtures, or documentation.
+- Never transmit original file names to the model; analyze binary content only.
+- Never log extracted document contents, fields, images, PDFs, or file names (Zero PII).
+- The `pypdf` logger is silenced prior to parsing, as upstream debug logs may leak
+  document content tokens. This rule is verified by malformed synthetic PDF regressions.
+- Enforce `Cache-Control: no-store` and protective security headers to prevent
+  client-side caching or MIME sniffing in the browser.
+- Keep CSS and JavaScript in dedicated static files: Content Security Policy (CSP)
+  disallows `'unsafe-inline'` and enforces `frame-ancestors 'none'`. Never reintroduce
+  inline `<style>`, `<script>`, or `style="..."` attributes in HTML.
+- Serve strictly the explicit static assets declared in `STATIC_ASSETS`, never arbitrary
+  filesystem paths from URL parameters.
+- Explicitly close uploaded files upon request completion to release any temporary
+  spool resources utilized by the multipart parser.
+- Use `textContent` in the web frontend for any data rendered from model responses.
+- Enforce human review prior to any operational downstream usage.
+- Use synthetic documents only across all automated tests.
+- Local parsing/decoding executes inside a disposable worker process. Communication
+  occurs via in-memory IPC pipes carrying only extension and raw bytes; timeout or
+  cancellation terminates the worker and closes the pipe before releasing concurrency slots.
+- CSV export sanitizes spreadsheet formula injection prefixes (`=`, `+`, `-`, `@`, tab).
+  This does not alter the original value displayed or exported in JSON.
 
-## Exposição do endpoint
+## Endpoint Exposure & Boundary Controls
 
-O piloto atende somente o computador local e não possui autenticação. Duas
-barreiras aplicam isso:
+The project is designed exclusively for local machine operation and does not implement
+user authentication. Two mechanical boundaries enforce this constraint:
 
-- `HOST` fora de loopback aborta a inicialização em `Settings.from_env()`.
-- `LoopbackOnlyMiddleware` responde `403` quando o cliente não é loopback,
-  qualquer que seja o endereço em que o servidor foi colocado para escutar, e
-  também quando a requisição traz um `Origin` de outro host.
-- `ConcurrencyLimit` responde `429` acima de duas análises simultâneas, para que
-  um cliente local não consuma a chave do provedor em rajada.
+- Any `HOST` value outside loopback halts startup in `Settings.from_env()`.
+- `LoopbackOnlyMiddleware` responds with `403 Forbidden` whenever the client IP is not
+  a loopback address (regardless of binding address), and whenever an incoming request
+  carries a non-local `Origin` header.
+- `ConcurrencyLimit` responds with `429 Too Many Requests` beyond two concurrent
+  extractions to prevent token exhaustion bursts from local clients.
 
-Antes de publicar em rede, isso não basta: é preciso autenticação, host
-permitido, rate limit por cliente e revisão do controle de concorrência.
+Before deploying to a shared network, additional safeguards are required: user
+authentication, allowed host whitelisting, per-client rate limiting, and revised
+concurrency control.
 
-## Revisão de mudança
+## Change Review Checklist
 
-Antes de alterar o fluxo de documentos, verificar: destino dos bytes, mensagens
-de erro e logs, arquivos temporários, limites de tamanho/páginas, tratamento de
-segredos e possibilidade de o conteúdo instruir o modelo a ignorar as regras.
+Before altering document flows, verify: byte destination, error messages and log outputs,
+temporary spool files, size and page boundaries, secret handling, and safeguards against
+adversarial document prompts attempting to override extraction rules.
