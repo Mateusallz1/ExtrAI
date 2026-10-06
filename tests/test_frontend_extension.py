@@ -219,3 +219,115 @@ def test_extension_popup_persists_edited_phone_and_defaults(page: Page) -> None:
     assert page.locator("#config-email").input_value() == ""
     assert page.locator("#config-cnpj").input_value() == ""
 
+
+def test_extension_sanitizes_cpf_and_phone_for_strict_maxlength_inputs(page: Page) -> None:
+    strict_html = """
+    <html>
+      <body>
+        <form>
+          <input type="text" id="inputCpf" maxlength="11" />
+          <input type="text" id="inputPhone" maxlength="10" />
+        </form>
+      </body>
+    </html>
+    """
+    page.set_content(strict_html)
+    page.evaluate(CONTENT_JS)
+
+    test_data = {
+        "kind": "cnh",
+        "fields": {
+            "cpf": {"value": "123.456.789-09"},
+        },
+    }
+    test_defaults = {
+        "phone": "(86) 9816-3900",
+    }
+
+    result = page.evaluate(
+        "({ data, defaults }) => window.__extraiFillForm(data, defaults)",
+        {"data": test_data, "defaults": test_defaults},
+    )
+
+    assert result["success"] is True
+    # Asserts that 11-digit CPF was not truncated with punctuation (e.g. "123.456.789")
+    assert page.locator("#inputCpf").input_value() == "12345678909"
+    # Asserts that formatted phone digits fit in maxlength 10
+    assert page.locator("#inputPhone").input_value() == "8698163900"
+
+
+def test_extension_prioritizes_rg_over_cnh_when_document_kind_is_rg(page: Page) -> None:
+    dual_reg_html = """
+    <html>
+      <body>
+        <form>
+          <input type="text" id="inputCnh" />
+          <input type="text" id="inputRg" />
+        </form>
+      </body>
+    </html>
+    """
+    page.set_content(dual_reg_html)
+    page.evaluate(CONTENT_JS)
+
+    # 1. Test when document is RG: should target inputRg, leaving inputCnh blank
+    rg_data = {
+        "kind": "rg",
+        "fields": {
+            "registration": {"value": "3.456.789-SSP/PI"},
+        },
+    }
+    res_rg = page.evaluate(
+        "({ data }) => window.__extraiFillForm(data, {})",
+        {"data": rg_data},
+    )
+    assert res_rg["success"] is True
+    assert page.locator("#inputRg").input_value() == "3.456.789-SSP/PI"
+    assert page.locator("#inputCnh").input_value() == ""
+
+    # Clear fields
+    page.locator("#inputRg").fill("")
+    page.locator("#inputCnh").fill("")
+
+    # 2. Test when document is CNH: should target inputCnh, leaving inputRg blank
+    cnh_data = {
+        "kind": "cnh",
+        "fields": {
+            "registration": {"value": "01234567890"},
+        },
+    }
+    res_cnh = page.evaluate(
+        "({ data }) => window.__extraiFillForm(data, {})",
+        {"data": cnh_data},
+    )
+    assert res_cnh["success"] is True
+    assert page.locator("#inputCnh").input_value() == "01234567890"
+    assert page.locator("#inputRg").input_value() == ""
+
+
+def test_extension_fills_various_confirm_email_field_patterns(page: Page) -> None:
+    patterns_html = """
+    <html>
+      <body>
+        <form>
+          <input type="email" id="email" />
+          <input type="email" id="confirmEmail" />
+          <input type="text" name="confirm_email" />
+        </form>
+      </body>
+    </html>
+    """
+    page.set_content(patterns_html)
+    page.evaluate(CONTENT_JS)
+
+    result = page.evaluate(
+        "({ defaults }) => window.__extraiFillForm(null, defaults)",
+        {"defaults": {"email": "operador@teste.com"}},
+    )
+
+    assert result["success"] is True
+    assert page.locator("#email").input_value() == "operador@teste.com"
+    # First matched confirm email input should be filled
+    assert page.locator("#confirmEmail").input_value() == "operador@teste.com"
+
+
