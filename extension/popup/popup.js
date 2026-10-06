@@ -44,6 +44,8 @@ const selectState = document.getElementById("config-state");
 const inputCity = document.getElementById("config-city");
 const btnSaveDefaults = document.getElementById("btn-save-defaults");
 const btnResetDefaults = document.getElementById("btn-reset-defaults");
+const btnClearSession = document.getElementById("btn-clear-session");
+const btnClearClientInputs = document.getElementById("btn-clear-client-inputs");
 const saveIndicator = document.getElementById("defaults-save-indicator");
 
 let saveTimeout = null;
@@ -167,6 +169,33 @@ function saveEmissionDefaults(explicit = false) {
   showSaveIndicator(explicit ? "✓ Salvo com sucesso!" : "✓ Salvo no navegador");
 }
 
+function clearClientData() {
+  if (inputEmail) inputEmail.value = "";
+  if (inputCnpj) inputCnpj.value = "";
+  try {
+    localStorage.removeItem(STORAGE_KEY_EMAIL);
+    localStorage.removeItem(STORAGE_KEY_CNPJ);
+  } catch {}
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.remove(["email", "cnpj"]);
+  }
+}
+
+async function finishAttendance() {
+  clearClientData();
+  currentExtractionData = null;
+  showState("empty");
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    await fetch(EXTRAI_API_URL, { method: "DELETE", signal: controller.signal });
+    clearTimeout(timeoutId);
+  } catch (err) {
+    console.warn("[ExtrAI] Erro ao limpar extração no servidor:", err);
+  }
+  showSaveIndicator("✓ Atendimento concluído");
+}
+
 function resetEmissionDefaults() {
   applyConfigToUI(DEFAULT_CONFIG);
 
@@ -182,7 +211,7 @@ function resetEmissionDefaults() {
     chrome.storage.local.set(DEFAULT_CONFIG);
   }
 
-  showSaveIndicator("✓ Padrões restaurados (PI / Teresina)");
+  showSaveIndicator("✓ Padrões de fábrica restaurados (PI / Teresina)");
 }
 
 function getActiveDefaults() {
@@ -382,6 +411,11 @@ inputCity?.addEventListener("blur", () => saveEmissionDefaults(false));
 
 btnSaveDefaults?.addEventListener("click", () => saveEmissionDefaults(true));
 btnResetDefaults?.addEventListener("click", resetEmissionDefaults);
+btnClearSession?.addEventListener("click", finishAttendance);
+btnClearClientInputs?.addEventListener("click", () => {
+  clearClientData();
+  showSaveIndicator("✓ Dados do cliente limpos");
+});
 
 async function detectTargetPage() {
   const targetVal = document.getElementById("target-domain-val");

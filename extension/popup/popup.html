@@ -66,17 +66,17 @@
 
       <div class="actions">
         <button id="btn-fill" class="btn-primary" type="button">Preencher Formulário</button>
+        <button id="btn-clear-session" class="btn-secondary btn-full" type="button" title="Concluir atendimento e descartar dados da memória">Concluir Atendimento</button>
       </div>
       <p id="fill-feedback" class="feedback-msg hidden"></p>
     </div>
 
-    <!-- Seção de Padrões da Emissão (Configuração Persistida) -->
-    <section class="card-section defaults-section">
+    <!-- Seção de Dados do Cliente (Transitório / Atendimento Atual) -->
+    <section class="card-section client-section">
       <div class="section-title-row">
-        <span class="section-title">Dados de Emissão (Padrão)</span>
+        <span class="section-title">Dados do Cliente (Atendimento)</span>
         <div class="section-actions">
-          <button type="button" id="btn-save-defaults" class="btn-action-save" title="Salvar dados de emissão">Salvar</button>
-          <button type="button" id="btn-reset-defaults" class="btn-link" title="Restaurar valores de fábrica">Restaurar</button>
+          <button type="button" id="btn-clear-client-inputs" class="btn-link" title="Limpar e-mail e CNPJ do cliente atual">Limpar</button>
         </div>
       </div>
       <div class="defaults-grid">
@@ -84,15 +84,26 @@
           <label for="config-email" class="input-label">E-mail do Cliente</label>
           <input type="email" id="config-email" class="form-input" placeholder="cliente@email.com">
         </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label for="config-phone" class="input-label">Telefone / Celular</label>
-            <input type="text" id="config-phone" class="form-input" placeholder="8698163900" maxlength="15">
-          </div>
-          <div class="form-group">
-            <label for="config-cnpj" class="input-label">CNPJ (se PJ)</label>
-            <input type="text" id="config-cnpj" class="form-input" placeholder="00.000.000/0001-00" maxlength="18">
-          </div>
+        <div class="form-group">
+          <label for="config-cnpj" class="input-label">CNPJ (se PJ)</label>
+          <input type="text" id="config-cnpj" class="form-input" placeholder="00.000.000/0001-00" maxlength="18">
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção de Padrões da Emissão (Configuração Fixa do Posto) -->
+    <section class="card-section defaults-section">
+      <div class="section-title-row">
+        <span class="section-title">Padrões do Posto (Fixo)</span>
+        <div class="section-actions">
+          <button type="button" id="btn-save-defaults" class="btn-action-save" title="Salvar padrões do posto">Salvar</button>
+          <button type="button" id="btn-reset-defaults" class="btn-link" title="Restaurar valores de fábrica">Restaurar</button>
+        </div>
+      </div>
+      <div class="defaults-grid">
+        <div class="form-group">
+          <label for="config-phone" class="input-label">Telefone / Celular</label>
+          <input type="text" id="config-phone" class="form-input" placeholder="8698163900" maxlength="15">
         </div>
         <div class="form-row-2">
           <div class="form-group">
