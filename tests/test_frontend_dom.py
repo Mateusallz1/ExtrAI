@@ -1110,3 +1110,49 @@ def test_stop_analysis_via_escape_key(page_at_home: Page) -> None:
     assert page.locator("#status").inner_text() == "Análise cancelada."
 
 
+def test_cin_document_renders_summary_and_fields(page_at_home: Page) -> None:
+    page = page_at_home
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    cin_data = {
+        "kind": "cin",
+        "pages": 1,
+        "fields": {
+            "name": {"value": "CARLOS EDUARDO SILVA", "confidence": "high", "label": "Nome"},
+            "cpf": {"value": "123.456.789-09", "confidence": "high", "label": "CPF"},
+            "birthDate": {
+                "value": "15/05/1960",
+                "confidence": "high",
+                "label": "Data de nascimento",
+            },
+            "issueDate": {"value": "10/01/2024", "confidence": "high", "label": "Data de emissão"},
+            "validity": {"value": "INDETERMINADA", "confidence": "high", "label": "Validade"},
+        },
+        "missing": [
+            {"key": "birthPlace", "label": "Local de nascimento"},
+            {"key": "nationality", "label": "Nacionalidade"},
+            {"key": "parentage", "label": "Filiação"},
+        ],
+        "text": "CARTEIRA DE IDENTIDADE NACIONAL",
+        "warnings": [],
+        "durationMs": 420,
+        "previews": [],
+    }
+    answer(page, body=cin_data)
+    upload(page)
+    analyze(page)
+
+    assert page.locator("#summary").inner_text() == "CIN identificada • 1 página"
+    validity_card = page.locator('.field-card[data-field-label="validity"]')
+    assert "INDETERMINADA" in validity_card.inner_text()
+    card_classes = validity_card.locator(".field-value").get_attribute("class") or ""
+    assert "field-invalid" not in card_classes
+
+    page.click("#copy")
+    page.wait_for_timeout(200)
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert "FICHA CADASTRAL — CIN" in copied
+    assert "Nome: CARLOS EDUARDO SILVA" in copied
+    assert "Validade: INDETERMINADA" in copied
+
+
+

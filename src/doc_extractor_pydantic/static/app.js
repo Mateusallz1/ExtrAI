@@ -534,6 +534,7 @@ function isValidDate(str) {
 }
 
 function isExpiredDate(str) {
+  if (/^indeterminad[ao]$/i.test((str || "").trim())) return false;
   if (!isValidDate(str)) return false;
   const [day, month, year] = str.trim().split("/").map(Number);
   const now = new Date();
@@ -612,6 +613,7 @@ function checkFieldValidity(key, text, allowIncomplete = false) {
     return isValidCpf(digits);
   }
   if (key === "birthDate" || key === "issueDate" || key === "validity" || key === "firstLicenceDate") {
+    if (key === "validity" && /^indeterminad[ao]$/i.test((text || "").trim())) return true;
     if (text.trim().length < 10 && allowIncomplete) return true;
     if (!isValidDate(text)) return false;
     const [day, month, year] = text.trim().split("/").map(Number);
@@ -753,16 +755,19 @@ function renderResult(data) {
     /comprovante|passaporte|t[íi]tulo|certid[ãa]o|carteira de trabalho|crlv|contrato|fatura|boleto|n[ãa]o suportado|especializado/i.test(w)
   );
 
-  const kindLabels = { cnh: "CNH", rg: "RG", unknown: "documento" };
+  const kindLabels = { cnh: "CNH", rg: "RG", cin: "CIN", unknown: "documento" };
   const kindLabel = kindLabels[data.kind] || "documento";
   const pageLabel = data.pages === 1 ? "1 página" : `${data.pages} páginas`;
   if (unsupportedWarning) {
     summary.textContent = `Documento não suportado • ${pageLabel}`;
     if (warningsTitle) warningsTitle.textContent = "Documento não suportado";
   } else {
+    const summaryPrefix = (data.kind === "cnh" || data.kind === "cin")
+      ? `${kindLabel} identificada`
+      : `${kindLabel} identificado`;
     summary.textContent = data.kind === "unknown"
       ? `Não foi possível identificar o documento • ${pageLabel}`
-      : `${kindLabel} identificado • ${pageLabel}`;
+      : `${summaryPrefix} • ${pageLabel}`;
     if (warningsTitle) warningsTitle.textContent = "Atenção";
   }
   rawText.textContent = data.text || "Nenhum texto foi encontrado.";

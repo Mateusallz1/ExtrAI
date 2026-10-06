@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-DocumentKind = Literal["cnh", "rg", "unknown"]
+DocumentKind = Literal["cnh", "rg", "cin", "unknown"]
 FieldConfidence = Literal["high", "medium", "low"]
 
 EXPECTED_FIELDS: dict[str, tuple[str, ...]] = {
@@ -22,6 +22,16 @@ EXPECTED_FIELDS: dict[str, tuple[str, ...]] = {
         "parentage",
     ),
     "rg": ("name", "cpf", "birth_date", "issue_date", "birth_place", "parentage"),
+    "cin": (
+        "name",
+        "cpf",
+        "birth_date",
+        "issue_date",
+        "validity",
+        "birth_place",
+        "nationality",
+        "parentage",
+    ),
     "unknown": ("name", "cpf", "birth_date"),
 }
 """Fields expected to be queried for each document type."""
@@ -197,6 +207,12 @@ class DocumentFields(BaseModel):
         for attribute in date_fields:
             field = getattr(self, attribute)
             if field is None or field.value is None:
+                continue
+            if attribute == "validity" and field.value.strip().upper() in (
+                "INDETERMINADA",
+                "INDETERMINADO",
+            ):
+                field.value = field.value.strip().upper()
                 continue
             parsed = _parse_brazilian_date(field.value)
             if parsed is None:

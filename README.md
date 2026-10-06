@@ -1,6 +1,6 @@
 # ExtrAI
 
-> **Automação inteligente, privativa e homologada para extração de documentos brasileiros (RG e CNH) e autopreenchimento de portais de Certificação Digital (ICP-Brasil).**
+> **Automação inteligente, privativa e homologada para extração de documentos brasileiros (RG, CNH e CIN) e autopreenchimento de portais de Certificação Digital (ICP-Brasil).**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
@@ -15,7 +15,7 @@
 
 ## Cenário e Propósito do Projeto
 
-O **ExtrAI** é uma solução de engenharia desenvolvida para automatizar o pipeline de extração de dados e preenchimento cadastral no ecossistema de Certificação Digital (**ICP-Brasil** — Soluti, Certisign, Valid, Serasa, Safeweb). O sistema substitui a transcrição manual de documentos de identificação (RG e CNH) por extração multimodal com IA e injeção assistida no navegador via extensão Manifest V3.
+O **ExtrAI** é uma solução de engenharia desenvolvida para automatizar o pipeline de extração de dados e preenchimento cadastral no ecossistema de Certificação Digital (**ICP-Brasil** — Soluti, Certisign, Valid, Serasa, Safeweb). O sistema substitui a transcrição manual de documentos de identificação (RG, CNH e CIN) por extração multimodal com IA e injeção assistida no navegador via extensão Manifest V3.
 
 ### Para quem é este projeto?
 
