@@ -164,8 +164,11 @@ input.addEventListener("change", () => {
   const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
   selectedIsPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   imagePreview.classList.toggle("hidden", !isImage);
-  if (isImage && typeof previewUrl === "string" && previewUrl.startsWith("blob:")) {
-    imagePreview.src = previewUrl;
+  if (isImage && typeof previewUrl === "string") {
+    const safeSrc = encodeURI(previewUrl);
+    if (safeSrc.startsWith("blob:")) {
+      imagePreview.src = safeSrc;
+    }
   }
 
   if (!isImage && !selectedIsPdf) {
