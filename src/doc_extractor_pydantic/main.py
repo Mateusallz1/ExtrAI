@@ -43,6 +43,12 @@ STATIC_ASSETS = {
     "logo.png": "image/png",
     "favicon.ico": "image/x-icon",
 }
+STATIC_FILES = {
+    "app.css": STATIC_DIR / "app.css",
+    "app.js": STATIC_DIR / "app.js",
+    "logo.png": STATIC_DIR / "logo.png",
+    "favicon.ico": STATIC_DIR / "favicon.ico",
+}
 
 
 MAX_REQUEST_BYTES = settings.max_upload_bytes + MULTIPART_OVERHEAD_BYTES
@@ -273,11 +279,12 @@ async def static_asset(asset: str) -> Response:
     """Serve only the known assets, never an arbitrary path."""
 
     media_type = STATIC_ASSETS.get(asset)
-    if media_type is None:
+    file_path = STATIC_FILES.get(asset)
+    if media_type is None or file_path is None or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
     content = STATIC_CACHE.get(asset)
     if content is None:
-        content = (STATIC_DIR / asset).read_bytes()
+        content = file_path.read_bytes()
     return Response(
         content=content,
         media_type=media_type,
