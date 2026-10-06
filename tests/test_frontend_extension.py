@@ -331,3 +331,52 @@ def test_extension_fills_various_confirm_email_field_patterns(page: Page) -> Non
     assert page.locator("#confirmEmail").input_value() == "operador@teste.com"
 
 
+def test_extension_popup_clear_client_inputs_preserves_branch_defaults(page: Page) -> None:
+    popup_uri = (ROOT / "extension" / "popup" / "popup.html").as_uri()
+    page.goto(popup_uri)
+
+    # Set custom branch defaults and client values
+    page.locator("#config-phone").fill("86988887777")
+    page.locator("#config-city").fill("Parnaíba")
+    page.locator("#config-email").fill("cliente@exemplo.com.br")
+    page.locator("#config-cnpj").fill("11.222.333/0001-44")
+
+    # Click clear client inputs
+    page.locator("#btn-clear-client-inputs").click()
+
+    # Client inputs must be cleared
+    assert page.locator("#config-email").input_value() == ""
+    assert page.locator("#config-cnpj").input_value() == ""
+
+    # Branch defaults must remain untouched
+    assert page.locator("#config-phone").input_value() == "86988887777"
+    assert page.locator("#config-city").input_value() == "Parnaíba"
+
+
+def test_extension_popup_finish_attendance_clears_client_data_and_resets_ui(page: Page) -> None:
+    popup_uri = (ROOT / "extension" / "popup" / "popup.html").as_uri()
+    page.goto(popup_uri)
+
+    # Simulate ready state with client data populated
+    page.evaluate(
+        """() => {
+            document.getElementById('state-ready').classList.remove('hidden');
+            document.getElementById('state-empty').classList.add('hidden');
+            document.getElementById('config-email').value = 'cliente@teste.com';
+            document.getElementById('config-cnpj').value = '12.345.678/0001-90';
+        }"""
+    )
+
+    # Click Concluir Atendimento
+    page.locator("#btn-clear-session").click()
+
+    # UI must switch back to empty state
+    assert "hidden" not in page.locator("#state-empty").get_attribute("class")
+    assert "hidden" in page.locator("#state-ready").get_attribute("class")
+
+    # Client inputs must be cleared
+    assert page.locator("#config-email").input_value() == ""
+    assert page.locator("#config-cnpj").input_value() == ""
+
+
+

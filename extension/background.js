@@ -33,6 +33,18 @@ async function getStoredDefaults() {
   });
 }
 
+function setBadge(text, color, durationMs = 2500) {
+  if (typeof chrome !== "undefined" && chrome.action) {
+    chrome.action.setBadgeText({ text });
+    if (color) {
+      chrome.action.setBadgeBackgroundColor({ color });
+    }
+    setTimeout(() => {
+      chrome.action.setBadgeText({ text: "" });
+    }, durationMs);
+  }
+}
+
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "fill_form") return;
 
@@ -48,6 +60,7 @@ chrome.commands.onCommand.addListener(async (command) => {
       url.startsWith("chrome-extension://") ||
       url.startsWith("about:")
     ) {
+      setBadge("NAV", "#64748b");
       return;
     }
 
@@ -61,17 +74,32 @@ chrome.commands.onCommand.addListener(async (command) => {
 
       if (!isHttps && !isLocal) {
         console.warn("[ExtrAI Segurança] Preenchimento bloqueado em conexão HTTP externa:", parsed.origin);
+        setBadge("BLOQ", "#dc2626");
         return;
       }
     } catch {
+      setBadge("ERR", "#dc2626");
       return;
     }
 
-    const response = await fetch(EXTRAI_API_URL);
-    if (!response.ok) return;
+    let response;
+    try {
+      response = await fetch(EXTRAI_API_URL);
+    } catch {
+      setBadge("OFF", "#dc2626");
+      return;
+    }
+
+    if (!response.ok) {
+      setBadge("OFF", "#dc2626");
+      return;
+    }
 
     const payload = await response.json();
-    if (!payload.hasData || !payload.data) return;
+    if (!payload.hasData || !payload.data) {
+      setBadge("NULL", "#d97706");
+      return;
+    }
 
     const defaults = await getStoredDefaults();
 
@@ -84,8 +112,15 @@ chrome.commands.onCommand.addListener(async (command) => {
       action: "fill_form",
       data: payload.data,
       defaults,
+    }, (res) => {
+      if (res && res.success) {
+        setBadge("OK", "#16a34a");
+      } else {
+        setBadge("0/0", "#d97706");
+      }
     });
   } catch (err) {
     console.error("[ExtrAI] Erro ao preencher via atalho:", err);
+    setBadge("ERR", "#dc2626");
   }
 });
