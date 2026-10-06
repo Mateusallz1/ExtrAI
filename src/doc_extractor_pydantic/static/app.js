@@ -164,7 +164,9 @@ input.addEventListener("change", () => {
   const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
   selectedIsPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   imagePreview.classList.toggle("hidden", !isImage);
-  if (isImage) imagePreview.src = previewUrl;
+  if (isImage && typeof previewUrl === "string" && previewUrl.startsWith("blob:")) {
+    imagePreview.src = previewUrl;
+  }
 
   if (!isImage && !selectedIsPdf) {
     status.className = "status error";
@@ -388,7 +390,9 @@ function renderFocusPreview() {
   if (!preview) return;
   focusLabel.textContent = preview.label || "Detalhe do documento";
   if (focusImage.getAttribute("src") !== preview.src) {
-    focusImage.src = preview.src;
+    if (typeof preview.src === "string" && (preview.src.startsWith("blob:") || preview.src.startsWith("data:image/"))) {
+      focusImage.src = preview.src;
+    }
   }
   focusImage.alt = preview.label || "Detalhe do documento";
   fitFocusImage(preview);
@@ -430,7 +434,9 @@ function renderFocusPreviews(previews, kind) {
       thumbnail.className = "focus-thumb";
       thumbnail.title = preview.label || `Detalhe ${index + 1}`;
       const image = document.createElement("img");
-      image.src = preview.src;
+      if (typeof preview.src === "string" && (preview.src.startsWith("blob:") || preview.src.startsWith("data:image/"))) {
+        image.src = preview.src;
+      }
       image.alt = preview.label || `Detalhe ${index + 1}`;
       thumbnail.append(image);
       thumbnail.addEventListener("click", () => {

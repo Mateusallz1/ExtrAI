@@ -275,9 +275,12 @@ async def static_asset(asset: str) -> Response:
     media_type = STATIC_ASSETS.get(asset)
     if media_type is None:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+    target_path = (STATIC_DIR / asset).resolve()
+    if not target_path.is_relative_to(STATIC_DIR.resolve()) or not target_path.is_file():
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
     content = STATIC_CACHE.get(asset)
     if content is None:
-        content = (STATIC_DIR / asset).read_bytes()
+        content = target_path.read_bytes()
     return Response(
         content=content,
         media_type=media_type,
