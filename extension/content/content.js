@@ -87,13 +87,17 @@
       value = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
     }
 
-    // Limpeza de dígitos para campos numéricos/CNH com máscara estrita
-    if (
-      element.classList.contains("cnh") ||
-      element.id === "inputCnh" ||
-      (element.maxLength === 11 && !value.includes("."))
-    ) {
-      value = value.replace(/\D/g, "");
+    // Limpeza de dígitos para campos numéricos/CNH/CPF/telefone com máscara estrita
+    const digitsOnly = value.replace(/\D/g, "");
+    const isStrictCnh = element.classList.contains("cnh") || element.id === "inputCnh";
+    const isStrict11 = element.maxLength === 11 && digitsOnly.length === 11;
+    const isOverflowingField =
+      element.maxLength > 0 &&
+      element.maxLength < value.length &&
+      digitsOnly.length <= element.maxLength;
+
+    if (isStrictCnh || isStrict11 || isOverflowingField) {
+      value = digitsOnly;
     }
 
     // Burlar override de setters de frameworks (React, Angular, Vue)
@@ -171,7 +175,7 @@
     return false;
   }
 
-  function waitAndSelectCity(selectEl, cityName, maxWaitMs = 2500) {
+  function waitAndSelectCity(selectEl, cityName, maxWaitMs = 3500) {
     if (!selectEl || !cityName) return;
     if (matchAndSelectOption(selectEl, cityName)) return;
 
@@ -279,10 +283,11 @@
       const emailInput = findElementBySelectors([
         "#inputEmail",
         "input[name='email' i]",
-        "input[type='email']",
-        "input[id*='email' i]:not([id*='confirm' i]):not([id*='cc' i])",
-        "input[placeholder*='e-mail' i]",
-        "input[placeholder*='email' i]",
+        "input[id*='email' i]:not([id*='confirm' i]):not([id*='confirma' i]):not([id*='cc' i])",
+        "input[name*='email' i]:not([name*='confirm' i]):not([name*='confirma' i]):not([name*='cc' i])",
+        "input[type='email']:not([id*='confirm' i]):not([name*='confirm' i]):not([id*='confirma' i]):not([name*='confirma' i])",
+        "input[placeholder*='e-mail' i]:not([placeholder*='confirm' i]):not([placeholder*='confirme' i])",
+        "input[placeholder*='email' i]:not([placeholder*='confirm' i]):not([placeholder*='confirme' i])",
       ]);
       if (emailInput && setNativeValue(emailInput, email)) {
         filledCount++;
@@ -291,12 +296,21 @@
 
       const confirmEmailInput = findElementBySelectors([
         "#inputConfirmarEmail",
+        "#confirmEmail",
+        "#inputConfirmEmail",
+        "#emailConfirm",
+        "#confirmaEmail",
         "input[name*='confirmar' i][name*='email' i]",
         "input[name*='confirma' i][name*='email' i]",
+        "input[name*='confirm' i][name*='email' i]",
+        "input[name='confirm_email' i]",
+        "input[name='email_confirmation' i]",
         "input[id*='confirmar' i][id*='email' i]",
         "input[id*='confirma' i][id*='email' i]",
+        "input[id*='confirm' i][id*='email' i]",
         "input[placeholder*='confirme' i]",
         "input[placeholder*='confirmar' i]",
+        "input[placeholder*='confirm' i]",
       ]);
       if (confirmEmailInput && setNativeValue(confirmEmailInput, email)) {
         filledCount++;
@@ -322,7 +336,7 @@
     return { filledCount, filledFields };
   }
 
-  const FIELD_DEFINITIONS = [
+  const BASE_FIELD_DEFINITIONS = [
     {
       key: "name",
       label: "Nome completo",
@@ -364,20 +378,44 @@
         "input[placeholder*='nascimento' i]",
       ],
     },
+  ];
+
+  const CNH_REGISTRATION_SELECTORS = [
+    "#inputCnh",
+    "#cnh",
+    "input[name*='cnh' i]",
+    "input[id*='cnh' i]",
+    "input[placeholder*='cnh' i]",
+    "#registro",
+    "input[name*='registro' i]",
+    "#inputRg",
+    "#rg",
+    "input[name*='rg' i]",
+    "input[id*='rg' i]",
+  ];
+
+  const RG_REGISTRATION_SELECTORS = [
+    "#inputRg",
+    "#rg",
+    "#registroGeral",
+    "input[name*='rg' i]",
+    "input[id*='rg' i]",
+    "input[placeholder*='rg' i]",
+    "input[name*='registroGeral' i]",
+    "input[id*='registroGeral' i]",
+    "#registro",
+    "input[name*='registro' i]",
+    "#inputCnh",
+    "#cnh",
+    "input[name*='cnh' i]",
+  ];
+
+  const FIELD_DEFINITIONS = [
+    ...BASE_FIELD_DEFINITIONS,
     {
       key: "registration",
       label: "CNH / Registro",
-      selectors: [
-        "#inputCnh",
-        "#cnh",
-        "#rg",
-        "#registro",
-        "input[name*='cnh' i]",
-        "input[id*='cnh' i]",
-        "input[name*='rg' i]",
-        "input[id*='rg' i]",
-        "input[name*='registro' i]",
-      ],
+      selectors: CNH_REGISTRATION_SELECTORS,
     },
   ];
 
@@ -387,7 +425,16 @@
 
     // Preenchimento de campos extraídos do documento
     if (data && data.fields) {
-      for (const def of FIELD_DEFINITIONS) {
+      const isRg = String(data.kind || "").toLowerCase() === "rg";
+      const registrationDef = {
+        key: "registration",
+        label: isRg ? "RG / Registro Geral" : "CNH / Registro",
+        selectors: isRg ? RG_REGISTRATION_SELECTORS : CNH_REGISTRATION_SELECTORS,
+      };
+
+      const fieldDefs = [...BASE_FIELD_DEFINITIONS, registrationDef];
+
+      for (const def of fieldDefs) {
         const fieldData = data.fields[def.key];
         const val = fieldData?.value;
         if (!val || val === "Não identificado") continue;
