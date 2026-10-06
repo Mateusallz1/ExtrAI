@@ -118,9 +118,10 @@ O ExtrAI foi construído sob o princípio de **Privacy by Design & Zero Trust Lo
           │ (Polling seguro via loopback)
           ▼
   [Extensão Chrome Manifest V3]
-     ├── Popup: Gestão de Padrões (Telefone, UF, Cidade, E-mail, CNPJ)
+     ├── Popup: Padrões do Posto (Telefone, UF, Cidade) & Cliente (E-mail, CNPJ)
+     ├── Concluir Atendimento: Descarte imediato da memória volátil (LGPD)
      ├── Content Script: Injeção assistida por eventos sintéticos
-     └── Atalho Global Alt + P
+     └── Atalho Global Alt + P (com feedback tátil via badge)
           │
           ▼
   [Portal de Videoconferência / Certificadora (Soluti / Certisign)]
@@ -186,6 +187,14 @@ Endpoint consumido pela Extensão do Chrome via loopback. Retorna os dados da ex
       "registration": { "value": "01234567890" }
     }
   }
+}
+```
+
+### 4. `DELETE /api/last-extraction`
+Descarta imediatamente da memória volátil os dados da última extração (LGPD e encerramento de sessão). Acionado pelo botão "Concluir Atendimento" da extensão ou pelo reset do frontend:
+```json
+{
+  "status": "cleared"
 }
 ```
 
