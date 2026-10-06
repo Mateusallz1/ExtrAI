@@ -2,7 +2,7 @@
 
 ## Scope
 
-Local pilot for extracting RG and CNH data from images and PDFs. There is no
+Local pilot for extracting RG, CNH, and CIN data from images and PDFs. There is no
 database, message queue, permanent storage, or automated submission to external
 systems.
 

@@ -465,6 +465,44 @@ def test_expected_fields_follow_the_document_kind() -> None:
     assert [field["key"] for field in unknown["missing"]] == ["name", "cpf", "birthDate"]
 
 
+def test_cin_expected_fields_and_missing_mapping() -> None:
+    cin = to_api_response(DocumentExtraction(kind="cin"), pages=1, duration_ms=1)
+    missing_keys = [field["key"] for field in cin["missing"]]
+    assert "category" not in missing_keys
+    assert "registration" not in missing_keys
+    assert "firstLicenceDate" not in missing_keys
+    assert missing_keys == [
+        "name",
+        "cpf",
+        "birthDate",
+        "issueDate",
+        "validity",
+        "birthPlace",
+        "nationality",
+        "parentage",
+    ]
+
+
+def test_cin_prunes_inapplicable_warnings_and_accepts_indeterminada() -> None:
+    extraction = DocumentExtraction(
+        kind="cin",
+        fields={
+            "name": {"value": "SEBASTIAO DA SILVA", "confidence": "high"},
+            "cpf": {"value": "123.456.789-09", "confidence": "high"},
+            "validity": {"value": "INDETERMINADA", "confidence": "high"},
+        },
+        warnings=[
+            "Não foi possível localizar o número de registro.",
+            "Categoria de habilitação não encontrada.",
+            "1ª habilitação ausente.",
+            "Filiação parcialmente ilegível.",
+        ],
+    )
+    assert extraction.fields.validity is not None
+    assert extraction.fields.validity.value == "INDETERMINADA"
+    assert extraction.warnings == ["Filiação parcialmente ilegível."]
+
+
 class FakeAgent:
     def __init__(self) -> None:
         self.messages = None
