@@ -18,6 +18,7 @@ from doc_extractor_pydantic.extractor import (
     ProviderUnavailableError,
     UploadValidationError,
     extract_pdf_previews,
+    format_text,
     media_type_for,
     to_api_response,
     validate_upload,
@@ -28,7 +29,7 @@ from doc_extractor_pydantic.limits import (
     MAX_PREVIEW_SCAN_PAGES,
     PROVIDER_RETRIES,
 )
-from doc_extractor_pydantic.models import DocumentExtraction, ExtractedField
+from doc_extractor_pydantic.models import DocumentExtraction, DocumentIntegrity, ExtractedField
 from doc_extractor_pydantic.prompts import EXTRACTION_INSTRUCTIONS
 
 
@@ -957,4 +958,76 @@ def test_settings_configured_fallback_models_filters_unconfigured(monkeypatch) -
     )
     configured = settings.configured_fallback_models()
     assert configured == ("google:gemini-3-flash-preview",)
+
+
+def test_document_integrity_defaults_and_validation() -> None:
+    integrity_default = DocumentIntegrity()
+    assert integrity_default.media_type == "unknown"
+    assert integrity_default.risk_level == "low"
+    assert integrity_default.tampering_detected is False
+    assert integrity_default.flags == []
+
+    # Tampering detected elevates low risk to high
+    tampered = DocumentIntegrity(tampering_detected=True, risk_level="low")
+    assert tampered.risk_level == "high"
+
+    # Screen capture elevates low risk to medium
+    screen = DocumentIntegrity(media_type="screen_capture", risk_level="low")
+    assert screen.risk_level == "medium"
+
+    # Flag list cleaning strips whitespace
+    with_flags = DocumentIntegrity(flags=["  padrão moiré detectado  ", "", " "])
+    assert with_flags.flags == ["padrão moiré detectado"]
+
+
+def test_document_integrity_warnings_injected_in_extraction() -> None:
+    tampered_extraction = DocumentExtraction(
+        kind="cnh",
+        integrity=DocumentIntegrity(tampering_detected=True),
+    )
+    assert any("adulteração visual" in w for w in tampered_extraction.warnings)
+
+    screen_extraction = DocumentExtraction(
+        kind="rg",
+        integrity=DocumentIntegrity(media_type="screen_capture"),
+    )
+    assert any("foto de tela/monitor" in w for w in screen_extraction.warnings)
+
+
+def test_api_response_includes_document_integrity() -> None:
+    extraction = DocumentExtraction(
+        kind="cnh",
+        integrity=DocumentIntegrity(
+            media_type="physical_original",
+            risk_level="low",
+            tampering_detected=False,
+            flags=["padrão gráfico íntegro"],
+        ),
+    )
+    result = to_api_response(extraction, pages=1, duration_ms=50)
+    assert "integrity" in result
+    assert result["integrity"] == {
+        "mediaType": "physical_original",
+        "riskLevel": "low",
+        "tamperingDetected": False,
+        "flags": ["padrão gráfico íntegro"],
+    }
+
+
+def test_format_text_includes_document_integrity() -> None:
+    extraction = DocumentExtraction(
+        kind="cnh",
+        integrity=DocumentIntegrity(
+            media_type="physical_original",
+            risk_level="low",
+            tampering_detected=False,
+            flags=["padrão gráfico íntegro"],
+        ),
+    )
+    text = format_text(extraction)
+    assert "INTEGRIDADE DO DOCUMENTO" in text
+    assert "Tipo de mídia: Documento físico original" in text
+    assert "Nível de risco: Baixo" in text
+    assert "Adulteração detectada: Não" in text
+    assert "Observações: padrão gráfico íntegro" in text
 

@@ -39,6 +39,10 @@ const focusImageContainer = document.querySelector("#focus-image-container");
 const focusImage = document.querySelector("#focus-image");
 const focusThumbnails = document.querySelector("#focus-thumbnails");
 const summary = document.querySelector("#summary");
+const integrityBox = document.querySelector("#integrity-box");
+const integrityRiskBadge = document.querySelector("#integrity-risk-badge");
+const integrityMediaType = document.querySelector("#integrity-media-type");
+const integrityFlags = document.querySelector("#integrity-flags");
 const warningBox = document.querySelector("#warning-box");
 const warningsTitle = document.querySelector("#warnings-title");
 const warnings = document.querySelector("#warnings");
@@ -143,6 +147,13 @@ input.addEventListener("change", () => {
   document.body.classList.remove("has-result");
   result.classList.add("hidden");
   summary.textContent = "";
+  if (integrityBox) integrityBox.classList.add("hidden");
+  if (integrityRiskBadge) {
+    integrityRiskBadge.className = "integrity-badge";
+    integrityRiskBadge.textContent = "";
+  }
+  if (integrityMediaType) integrityMediaType.textContent = "";
+  if (integrityFlags) integrityFlags.replaceChildren();
   warningBox.classList.add("hidden");
   if (warningsTitle) warningsTitle.textContent = "Atenção";
   warnings.replaceChildren();
@@ -785,6 +796,51 @@ function renderResult(data) {
   warnings.replaceChildren(...warningItems.map((warning) => {
     const li = document.createElement("li"); li.textContent = warning; return li;
   }));
+  if (data.integrity && data.integrity.mediaType) {
+    const mediaLabels = {
+      physical_original: "Documento físico original",
+      digital_official: "Documento eletrônico oficial",
+      photocopy: "Fotocópia (xerox)",
+      screen_capture: "Recaptura de tela (monitor/celular)",
+      unknown: "Mídia não identificada",
+    };
+    const riskLabels = {
+      low: "Risco baixo",
+      medium: "Risco médio",
+      high: "Risco alto",
+    };
+    const riskLevel = data.integrity.riskLevel || "low";
+    const mediaType = data.integrity.mediaType || "unknown";
+    const mediaLabel = mediaLabels[mediaType] || mediaType;
+    const riskLabel = riskLabels[riskLevel] || riskLevel;
+
+    if (integrityRiskBadge) {
+      integrityRiskBadge.className = `integrity-badge integrity-badge-${riskLevel}`;
+      integrityRiskBadge.textContent = riskLabel;
+    }
+    if (integrityMediaType) {
+      integrityMediaType.textContent = `Mídia: ${mediaLabel}`;
+    }
+    if (integrityFlags) {
+      integrityFlags.replaceChildren();
+      const flagItems = Array.isArray(data.integrity.flags)
+        ? data.integrity.flags.filter((f) => typeof f === "string" && f.trim())
+        : [];
+      if (data.integrity.tamperingDetected) {
+        const alertLi = document.createElement("li");
+        alertLi.textContent = "Alerta: Evidências visuais de adulteração ou manipulação digital.";
+        integrityFlags.append(alertLi);
+      }
+      for (const flag of flagItems) {
+        const li = document.createElement("li");
+        li.textContent = flag;
+        integrityFlags.append(li);
+      }
+    }
+    if (integrityBox) integrityBox.classList.remove("hidden");
+  } else {
+    if (integrityBox) integrityBox.classList.add("hidden");
+  }
   const found = Object.entries(data.fields || {}).map(([key, value]) => renderFieldCard(key, value));
   const missing = (Array.isArray(data.missing) ? data.missing : [])
     .map((field) => renderFieldCard(field.key, { label: field.label, value: null }));
@@ -840,6 +896,29 @@ document.querySelector("#copy")?.addEventListener("click", async () => {
     `FICHA CADASTRAL — ${kind}`,
     ...items.map((it) => `${it.label}: ${it.value}`),
   ];
+  if (lastData?.integrity && lastData.integrity.mediaType) {
+    const mediaLabels = {
+      physical_original: "Documento físico original",
+      digital_official: "Documento eletrônico oficial",
+      photocopy: "Fotocópia (xerox)",
+      screen_capture: "Recaptura de tela (monitor/celular)",
+      unknown: "Mídia não identificada",
+    };
+    const riskLabels = {
+      low: "Risco baixo",
+      medium: "Risco médio",
+      high: "Risco alto",
+    };
+    const mLabel = mediaLabels[lastData.integrity.mediaType] || lastData.integrity.mediaType;
+    const rLabel = riskLabels[lastData.integrity.riskLevel] || lastData.integrity.riskLevel;
+    lines.push("", "INTEGRIDADE E DOCUMENTOSCOPIA", `Mídia: ${mLabel}`, `Risco: ${rLabel}`);
+    if (lastData.integrity.tamperingDetected) {
+      lines.push("Adulteração: Detectada");
+    }
+    if (Array.isArray(lastData.integrity.flags) && lastData.integrity.flags.length > 0) {
+      lines.push(`Observações: ${lastData.integrity.flags.join(", ")}`);
+    }
+  }
   if (await copyText(lines.join("\n"))) {
     status.textContent = "Ficha cadastral copiada. Faça a conferência final.";
   }
@@ -912,6 +991,9 @@ document.querySelector("#download-json")?.addEventListener("click", () => {
     documento: lastData.kind || "documento",
     dados: Object.fromEntries(items.map((it) => [it.label, it.value])),
   };
+  if (lastData?.integrity) {
+    obj.integridade = lastData.integrity;
+  }
   downloadFile(JSON.stringify(obj, null, 2), `extracao-${lastData.kind || "documento"}.json`, "application/json");
   reportDownload("Arquivo JSON baixado.", items);
 });
@@ -1036,6 +1118,13 @@ function clearExtraction() {
   introCopy.classList.remove("hidden");
   uploadLabel.classList.add("hidden");
   summary.textContent = "";
+  if (integrityBox) integrityBox.classList.add("hidden");
+  if (integrityRiskBadge) {
+    integrityRiskBadge.className = "integrity-badge";
+    integrityRiskBadge.textContent = "";
+  }
+  if (integrityMediaType) integrityMediaType.textContent = "";
+  if (integrityFlags) integrityFlags.replaceChildren();
   warningBox.classList.add("hidden");
   if (warningsTitle) warningsTitle.textContent = "Atenção";
   warnings.replaceChildren();

@@ -8,6 +8,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 DocumentKind = Literal["cnh", "rg", "cin", "unknown"]
 FieldConfidence = Literal["high", "medium", "low"]
+MediaType = Literal[
+    "physical_original",
+    "digital_official",
+    "photocopy",
+    "screen_capture",
+    "unknown",
+]
+IntegrityRisk = Literal["low", "medium", "high"]
 
 EXPECTED_FIELDS: dict[str, tuple[str, ...]] = {
     "cnh": (
@@ -282,6 +290,52 @@ class DocumentFields(BaseModel):
         }
 
 
+class DocumentIntegrity(BaseModel):
+    """Visual integrity and authenticity signals evaluated from the document image."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    media_type: MediaType = Field(
+        default="unknown",
+        description=(
+            "Tipo de mídia visual: physical_original (documento físico original fotografado "
+            "ou escaneado), digital_official (documento eletrônico oficial gerado por app), "
+            "photocopy (cópia reprográfica / xerox preto e branco), "
+            "screen_capture (foto tirada de uma tela de monitor ou celular), ou unknown."
+        ),
+    )
+    risk_level: IntegrityRisk = Field(
+        default="low",
+        description="Nível de risco de autenticidade ou manipulação: low, medium ou high.",
+    )
+    tampering_detected: bool = Field(
+        default=False,
+        description=(
+            "Indica se há evidências de manipulação gráfica, montagem de foto "
+            "ou sobreposição de texto."
+        ),
+    )
+    flags: list[str] = Field(
+        default_factory=list,
+        description="Sinais de integridade visual e documentoscopia observados na imagem.",
+    )
+
+    @field_validator("flags", mode="before")
+    @classmethod
+    def clean_flags(cls, value: object) -> list[str]:
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return []
+
+    @model_validator(mode="after")
+    def validate_risk_consistency(self) -> DocumentIntegrity:
+        if self.tampering_detected and self.risk_level == "low":
+            self.risk_level = "high"
+        elif self.media_type == "screen_capture" and self.risk_level == "low":
+            self.risk_level = "medium"
+        return self
+
+
 class DocumentExtraction(BaseModel):
     """Structured result expected from PydanticAI."""
 
@@ -289,9 +343,10 @@ class DocumentExtraction(BaseModel):
 
     kind: DocumentKind = Field(
         default="unknown",
-        description="Classificação do documento: cnh, rg ou unknown.",
+        description="Classificação do documento: cnh, rg, cin ou unknown.",
     )
     fields: DocumentFields = Field(default_factory=DocumentFields)
+    integrity: DocumentIntegrity = Field(default_factory=DocumentIntegrity)
     transcription: str = Field(
         default="",
         description="Transcrição limpa do texto que está legível no documento.",
@@ -315,4 +370,12 @@ class DocumentExtraction(BaseModel):
         for issue in self.fields.sanitize():
             if issue not in self.warnings:
                 self.warnings.append(issue)
+        if self.integrity.tampering_detected:
+            warning = "Possível adulteração visual ou manipulação digital detectada no documento."
+            if warning not in self.warnings:
+                self.warnings.append(warning)
+        elif self.integrity.media_type == "screen_capture":
+            warning = "Documento capturado a partir de foto de tela/monitor (recaptura)."
+            if warning not in self.warnings:
+                self.warnings.append(warning)
         return self

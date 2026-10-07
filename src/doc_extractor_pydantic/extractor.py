@@ -382,6 +382,12 @@ def to_api_response(
         "fields": fields,
         "missing": missing,
         "text": format_text(extraction),
+        "integrity": {
+            "mediaType": extraction.integrity.media_type,
+            "riskLevel": extraction.integrity.risk_level,
+            "tamperingDetected": extraction.integrity.tampering_detected,
+            "flags": extraction.integrity.flags,
+        },
         "warnings": extraction.warnings,
         "durationMs": duration_ms,
         "previews": cleaned_previews,
@@ -402,6 +408,38 @@ def format_text(extraction: DocumentExtraction) -> str:
     ]
     if structured:
         lines.extend(["", "DADOS ESTRUTURADOS", *structured])
+    if extraction.integrity and (
+        extraction.integrity.media_type != "unknown"
+        or extraction.integrity.risk_level != "low"
+        or extraction.integrity.tampering_detected
+        or extraction.integrity.flags
+    ):
+        media_labels = {
+            "physical_original": "Documento físico original",
+            "digital_official": "Documento eletrônico oficial",
+            "photocopy": "Fotocópia (xerox)",
+            "screen_capture": "Recaptura de tela",
+            "unknown": "Não identificado",
+        }
+        risk_labels = {
+            "low": "Baixo",
+            "medium": "Médio",
+            "high": "Alto",
+        }
+        media_name = media_labels.get(
+            extraction.integrity.media_type, extraction.integrity.media_type
+        )
+        risk_name = risk_labels.get(
+            extraction.integrity.risk_level, extraction.integrity.risk_level
+        )
+        integrity_lines = [
+            f"Tipo de mídia: {media_name}",
+            f"Nível de risco: {risk_name}",
+            f"Adulteração detectada: {'Sim' if extraction.integrity.tampering_detected else 'Não'}",
+        ]
+        if extraction.integrity.flags:
+            integrity_lines.append(f"Observações: {', '.join(extraction.integrity.flags)}")
+        lines.extend(["", "INTEGRIDADE DO DOCUMENTO", *integrity_lines])
     if extraction.transcription:
         lines.extend(["", "TRANSCRIÇÃO RECONHECIDA", extraction.transcription])
     return "\n".join(lines)

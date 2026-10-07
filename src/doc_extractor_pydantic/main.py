@@ -402,13 +402,16 @@ async def extract(request: Request, document: UploadFile = File(...)) -> dict[st
             await _cleanup_extraction(document, tasks)
 
     usage_info = result.get("usage") or {}
+    integrity_info = result.get("integrity") or {}
     logger.info(
         "document extraction completed: kind=%s pages=%s fields=%s duration_ms=%s "
-        "tokens_in=%s tokens_out=%s model=%s",
+        "media_type=%s risk=%s tokens_in=%s tokens_out=%s model=%s",
         result["kind"],
         result["pages"],
         len(result["fields"]),
         result["durationMs"],
+        integrity_info.get("mediaType", "unknown"),
+        integrity_info.get("riskLevel", "low"),
         usage_info.get("inputTokens", 0),
         usage_info.get("outputTokens", 0),
         result.get("modelUsed", settings.model),

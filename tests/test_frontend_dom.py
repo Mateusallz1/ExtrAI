@@ -1155,4 +1155,123 @@ def test_cin_document_renders_summary_and_fields(page_at_home: Page) -> None:
     assert "Validade: INDETERMINADA" in copied
 
 
+def test_render_integrity_low_risk_physical_original(page_at_home: Page) -> None:
+    page = page_at_home
+    doc_data = {
+        "kind": "cnh",
+        "pages": 1,
+        "fields": {
+            "name": {"value": "MARIA DE TESTE", "confidence": "high", "label": "Nome"},
+        },
+        "missing": [],
+        "text": "DOCUMENTO: CNH",
+        "warnings": [],
+        "durationMs": 100,
+        "previews": [],
+        "integrity": {
+            "mediaType": "physical_original",
+            "riskLevel": "low",
+            "tamperingDetected": False,
+            "flags": ["Padrão gráfico e microletras íntegros"],
+        },
+    }
+    answer(page, body=doc_data)
+    upload(page)
+    analyze(page)
+
+    box = page.locator("#integrity-box")
+    assert "hidden" not in (box.get_attribute("class") or "")
+    badge = page.locator("#integrity-risk-badge")
+    assert badge.inner_text() == "Risco baixo"
+    assert "integrity-badge-low" in (badge.get_attribute("class") or "")
+    media_text = page.locator("#integrity-media-type").inner_text()
+    assert "Documento físico original" in media_text
+    flags_text = page.locator("#integrity-flags").inner_text()
+    assert "Padrão gráfico e microletras íntegros" in flags_text
+
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.click("#copy")
+    page.wait_for_timeout(200)
+    copied = page.evaluate("navigator.clipboard.readText()")
+    assert "INTEGRIDADE E DOCUMENTOSCOPIA" in copied
+    assert "Mídia: Documento físico original" in copied
+    assert "Risco: Risco baixo" in copied
+
+    with page.expect_download() as download_info:
+        page.click("#download-json")
+    download_path = download_info.value.path()
+    assert download_path is not None
+    data = json.loads(Path(download_path).read_text(encoding="utf-8"))
+    assert "integridade" in data
+    assert data["integridade"]["mediaType"] == "physical_original"
+
+
+def test_render_integrity_tampering_detected_high_risk(page_at_home: Page) -> None:
+    page = page_at_home
+    doc_data = {
+        "kind": "rg",
+        "pages": 1,
+        "fields": {
+            "name": {"value": "JOAO DA SILVA", "confidence": "high", "label": "Nome"},
+        },
+        "missing": [],
+        "text": "DOCUMENTO: RG",
+        "warnings": ["Possível adulteração visual ou manipulação digital detectada."],
+        "durationMs": 150,
+        "previews": [],
+        "integrity": {
+            "mediaType": "physical_original",
+            "riskLevel": "high",
+            "tamperingDetected": True,
+            "flags": ["Recorte artificial na foto 3x4 detectado"],
+        },
+    }
+    answer(page, body=doc_data)
+    upload(page)
+    analyze(page)
+
+    badge = page.locator("#integrity-risk-badge")
+    assert badge.inner_text() == "Risco alto"
+    assert "integrity-badge-high" in (badge.get_attribute("class") or "")
+    flags_text = page.locator("#integrity-flags").inner_text()
+    assert "Alerta: Evidências visuais de adulteração ou manipulação digital." in flags_text
+    assert "Recorte artificial na foto 3x4 detectado" in flags_text
+
+
+def test_clear_extraction_hides_integrity_box(page_at_home: Page) -> None:
+    page = page_at_home
+    doc_data = {
+        "kind": "cnh",
+        "pages": 1,
+        "fields": {
+            "name": {"value": "MARIA DE TESTE", "confidence": "high", "label": "Nome"},
+        },
+        "missing": [],
+        "text": "DOCUMENTO: CNH",
+        "warnings": [],
+        "durationMs": 80,
+        "previews": [],
+        "integrity": {
+            "mediaType": "physical_original",
+            "riskLevel": "low",
+            "tamperingDetected": False,
+            "flags": [],
+        },
+    }
+    answer(page, body=doc_data)
+    upload(page)
+    analyze(page)
+
+    box = page.locator("#integrity-box")
+    assert "hidden" not in (box.get_attribute("class") or "")
+
+    submit = page.locator("#submit")
+    assert submit.inner_text() == "Limpar análise"
+    submit.click()
+    page.wait_for_timeout(100)
+    assert page.locator("#result").is_hidden()
+    assert "hidden" in (box.get_attribute("class") or "")
+
+
+
 
