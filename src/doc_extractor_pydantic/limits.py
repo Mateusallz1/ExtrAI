@@ -41,7 +41,7 @@ MAX_CONCURRENT_EXTRACTIONS = 2
 EXTRACTION_TIMEOUT_SECONDS = 42.0
 """Total time budget for local processing and provider responses, including retries."""
 
-MODEL_TIMEOUT_SECONDS = 25.0
+MODEL_TIMEOUT_SECONDS = 30.0
 """Time budget allowed for a single model attempt before failing over to a fallback model."""
 
 PROVIDER_RETRIES = 2

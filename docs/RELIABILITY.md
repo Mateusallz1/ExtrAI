@@ -27,7 +27,7 @@ Limits are defined in `limits.py`. File size and pixel dimensions are validated 
 | Concurrent extractions | 2 | `/api/extract`, returns `429` beyond this |
 | Local document processing | 15 s | Disposable process, killed on timeout/cancel |
 | End-to-end analysis timeout | 42 s | Covers local processing & provider retries, returns `504` |
-| Latency before fallback | 25 s | Failover to next model if reserve available |
+| Latency before fallback | 30 s | Failover to next model if reserve available |
 | Model invocations | 3 per model | Shared budget for internal/external retries |
 
 The PDF is opened exactly once per request: `validate_upload` returns the validated `PdfReader`, reused throughout the pipeline.

@@ -180,7 +180,7 @@ class DocumentExtractor:
                 )
             timeout_limit = (
                 MODEL_TIMEOUT_SECONDS
-                if MODEL_TIMEOUT_SECONDS != 25.0
+                if MODEL_TIMEOUT_SECONDS != 30.0
                 else self.settings.model_timeout_seconds
             )
             per_model_timeout = (
