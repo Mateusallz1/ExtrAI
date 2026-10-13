@@ -980,7 +980,7 @@ def test_settings_configured_fallback_models_includes_openai_when_configured(mon
 def test_settings_model_timeout_seconds_env_parsing(monkeypatch) -> None:
     monkeypatch.delenv("MODEL_TIMEOUT_SECONDS", raising=False)
     default_settings = Settings.from_env()
-    assert default_settings.model_timeout_seconds == 8.0
+    assert default_settings.model_timeout_seconds == 25.0
 
     monkeypatch.setenv("MODEL_TIMEOUT_SECONDS", "12.5")
     custom_settings = Settings.from_env()
@@ -988,11 +988,11 @@ def test_settings_model_timeout_seconds_env_parsing(monkeypatch) -> None:
 
     monkeypatch.setenv("MODEL_TIMEOUT_SECONDS", "-5.0")
     invalid_settings = Settings.from_env()
-    assert invalid_settings.model_timeout_seconds == 8.0
+    assert invalid_settings.model_timeout_seconds == 25.0
 
     monkeypatch.setenv("MODEL_TIMEOUT_SECONDS", "invalid")
     fallback_settings = Settings.from_env()
-    assert fallback_settings.model_timeout_seconds == 8.0
+    assert fallback_settings.model_timeout_seconds == 25.0
 
 
 def test_build_model_message_parts_gemini() -> None:
