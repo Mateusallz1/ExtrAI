@@ -926,7 +926,10 @@ def test_non_retryable_error_does_not_trigger_fallback(monkeypatch) -> None:
 def test_settings_fallback_models_env_parsing(monkeypatch) -> None:
     monkeypatch.delenv("PYDANTIC_AI_FALLBACK_MODELS", raising=False)
     default_settings = Settings.from_env()
-    assert default_settings.fallback_models == ("google:gemini-3-flash-preview",)
+    assert default_settings.fallback_models == (
+        "openai:gpt-4o-mini",
+        "google:gemini-3-flash-preview",
+    )
 
     monkeypatch.setenv(
         "PYDANTIC_AI_FALLBACK_MODELS",
@@ -957,4 +960,171 @@ def test_settings_configured_fallback_models_filters_unconfigured(monkeypatch) -
     )
     configured = settings.configured_fallback_models()
     assert configured == ("google:gemini-3-flash-preview",)
+
+
+def test_settings_configured_fallback_models_includes_openai_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+
+    settings = Settings(
+        model="google:gemini-3.5-flash-lite",
+        fallback_models=(
+            "openai:gpt-4o-mini",
+            "google:gemini-3-flash-preview",
+        ),
+    )
+    configured = settings.configured_fallback_models()
+    assert configured == ("openai:gpt-4o-mini", "google:gemini-3-flash-preview")
+
+
+def test_settings_model_timeout_seconds_env_parsing(monkeypatch) -> None:
+    monkeypatch.delenv("MODEL_TIMEOUT_SECONDS", raising=False)
+    default_settings = Settings.from_env()
+    assert default_settings.model_timeout_seconds == 8.0
+
+    monkeypatch.setenv("MODEL_TIMEOUT_SECONDS", "12.5")
+    custom_settings = Settings.from_env()
+    assert custom_settings.model_timeout_seconds == 12.5
+
+    monkeypatch.setenv("MODEL_TIMEOUT_SECONDS", "-5.0")
+    invalid_settings = Settings.from_env()
+    assert invalid_settings.model_timeout_seconds == 8.0
+
+    monkeypatch.setenv("MODEL_TIMEOUT_SECONDS", "invalid")
+    fallback_settings = Settings.from_env()
+    assert fallback_settings.model_timeout_seconds == 8.0
+
+
+def test_build_model_message_parts_gemini() -> None:
+    parts = extractor_module._build_model_message_parts(
+        target_model="google:gemini-3.5-flash-lite",
+        prompt="prompt",
+        content=b"%PDF-1.4",
+        media_type="application/pdf",
+        previews=[{"src": "data:image/jpeg;base64,ZmFrZQ=="}],
+    )
+    assert len(parts) == 3
+    assert parts[0] == "prompt"
+    assert parts[1].media_type == "application/pdf"
+    assert parts[2].media_type == "image/jpeg"
+
+
+def test_build_model_message_parts_openai_pdf_with_previews() -> None:
+    parts = extractor_module._build_model_message_parts(
+        target_model="openai:gpt-4o-mini",
+        prompt="prompt",
+        content=b"%PDF-1.4",
+        media_type="application/pdf",
+        previews=[
+            {"src": "data:image/jpeg;base64,ZmFrZTE="},
+            {"src": "data:image/jpeg;base64,ZmFrZTI="},
+        ],
+    )
+    assert parts is not None
+    assert len(parts) == 3
+    assert parts[0] == "prompt"
+    assert parts[1].media_type == "image/jpeg"
+    assert parts[2].media_type == "image/jpeg"
+
+
+def test_build_model_message_parts_openai_pdf_without_previews() -> None:
+    parts = extractor_module._build_model_message_parts(
+        target_model="openai:gpt-4o-mini",
+        prompt="prompt",
+        content=b"%PDF-1.4",
+        media_type="application/pdf",
+        previews=[],
+    )
+    assert parts is None
+
+
+def test_build_model_message_parts_openai_image() -> None:
+    parts = extractor_module._build_model_message_parts(
+        target_model="openai:gpt-4o-mini",
+        prompt="prompt",
+        content=JPEG,
+        media_type="image/jpeg",
+        previews=[],
+    )
+    assert parts is not None
+    assert len(parts) == 2
+    assert parts[0] == "prompt"
+    assert parts[1].media_type == "image/jpeg"
+
+
+def test_openai_fallback_receives_preview_images(monkeypatch) -> None:
+    class FailingPrimaryAgent:
+        async def run(self, *args, **kwargs):
+            raise ProviderUnavailableError("gemini down")
+
+    class CapturingOpenAIFallbackAgent:
+        def __init__(self) -> None:
+            self.received_messages = None
+
+        async def run(self, messages, *args, **kwargs):
+            self.received_messages = messages
+            return type(
+                "Result",
+                (),
+                {
+                    "output": DocumentExtraction(
+                        kind="cnh",
+                        fields={"name": ExtractedField(value="DANILO")},
+                    )
+                },
+            )()
+
+    openai_fallback = CapturingOpenAIFallbackAgent()
+    settings = Settings(
+        model="google:gemini-3.5-flash-lite",
+        fallback_models=("openai:gpt-4o-mini",),
+    )
+    extractor = DocumentExtractor(
+        settings=settings,
+        agent=FailingPrimaryAgent(),
+        fallback_agents=[openai_fallback],
+    )
+
+    pdf_with_image = make_image_pdf(pages=1)
+    result = asyncio.run(extractor.extract("doc.pdf", pdf_with_image))
+
+    assert result["modelUsed"] == "openai:gpt-4o-mini"
+    assert result["fields"]["name"]["value"] == "DANILO"
+    assert openai_fallback.received_messages is not None
+    # Verify OpenAI received preview images and not raw PDF application/pdf
+    for part in openai_fallback.received_messages[1:]:
+        assert part.media_type.startswith("image/")
+
+
+def test_openai_fallback_skipped_when_pdf_has_no_previews(monkeypatch) -> None:
+    class FailingPrimaryAgent:
+        async def run(self, *args, **kwargs):
+            raise ProviderUnavailableError("gemini down")
+
+    class UncalledOpenAIAgent:
+        async def run(self, *args, **kwargs):
+            pytest.fail("OpenAI fallback should have been skipped for PDF without previews")
+
+    class SuccessfulSecondaryFallbackAgent:
+        async def run(self, *args, **kwargs):
+            return type(
+                "Result",
+                (),
+                {"output": DocumentExtraction(kind="cnh")},
+            )()
+
+    secondary_fallback = SuccessfulSecondaryFallbackAgent()
+    settings = Settings(
+        model="google:gemini-3.5-flash-lite",
+        fallback_models=("openai:gpt-4o-mini", "google:gemini-3-flash-preview"),
+    )
+    extractor = DocumentExtractor(
+        settings=settings,
+        agent=FailingPrimaryAgent(),
+        fallback_agents=[UncalledOpenAIAgent(), secondary_fallback],
+    )
+
+    # Empty blank PDF has no images/previews
+    result = asyncio.run(extractor.extract("doc.pdf", PDF))
+    assert result["modelUsed"] == "google:gemini-3-flash-preview"
 

@@ -154,12 +154,6 @@ class DocumentExtractor:
             "Quando houver uma imagem complementar da frente, use-a para ler os "
             "campos pequenos com prioridade. Não invente valores."
         )
-        message_parts: list[object] = [
-            prompt,
-            BinaryContent(data=content, media_type=processed.media_type),
-        ]
-        if previews:
-            message_parts.append(_preview_binary_content(previews[0]))
 
         candidates: list[tuple[str, Any | None]] = [(self.settings.model, self.agent)]
         if self.agent is not None:
@@ -184,13 +178,31 @@ class DocumentExtractor:
                 raise ExtractionTimeoutError(
                     "O provedor não respondeu dentro do tempo limite local."
                 )
-            per_model_timeout = (
-                min(MODEL_TIMEOUT_SECONDS, remaining) if has_fallback else remaining
+            timeout_limit = (
+                MODEL_TIMEOUT_SECONDS
+                if MODEL_TIMEOUT_SECONDS != 8.0
+                else self.settings.model_timeout_seconds
             )
+            per_model_timeout = (
+                min(timeout_limit, remaining) if has_fallback else remaining
+            )
+            message_parts = _build_model_message_parts(
+                target_model, prompt, content, processed.media_type, previews
+            )
+            if message_parts is None:
+                if not has_fallback:
+                    raise ProviderUnavailableError(
+                        "O provedor de IA não suporta documentos PDF sem imagens prévias."
+                    )
+                logger.warning(
+                    "candidate skipped; provider lacks raw PDF support: model=%s",
+                    target_model,
+                )
+                continue
             try:
                 # Reserve agents are built only when the primary actually needs one.
                 target_agent = injected_agent or self._get_agent(target_model)
-            except (ValueError, ImportError, UserError) as error:
+            except (ValueError, ImportError, UserError, Exception) as error:
                 if idx == 0:
                     raise ProviderNotConfiguredError(
                         "A configuração do provedor não é válida."
@@ -214,6 +226,7 @@ class DocumentExtractor:
                 TimeoutError,
                 ExtractionTimeoutError,
                 UnexpectedModelBehavior,
+                UserError,
             ) as error:
                 last_error = error
                 if not has_fallback:
@@ -327,6 +340,31 @@ def _preview_binary_content(preview: dict[str, Any]) -> BinaryContent:
         data=base64.b64decode(encoded),
         media_type=media_type,
     )
+
+
+def _build_model_message_parts(
+    target_model: str,
+    prompt: str,
+    content: bytes,
+    media_type: str,
+    previews: list[dict[str, Any]],
+) -> list[object] | None:
+    is_openai = target_model.lower().startswith(("openai:", "openai-responses:"))
+    if is_openai and media_type == "application/pdf":
+        if not previews:
+            return None
+        parts: list[object] = [prompt]
+        for preview in previews:
+            parts.append(_preview_binary_content(preview))
+        return parts
+
+    parts = [
+        prompt,
+        BinaryContent(data=content, media_type=media_type),
+    ]
+    if previews:
+        parts.append(_preview_binary_content(previews[0]))
+    return parts
 
 
 FIELD_LABELS = {

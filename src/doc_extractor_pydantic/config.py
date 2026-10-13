@@ -4,9 +4,11 @@ import ipaddress
 import os
 from dataclasses import dataclass
 
+from .limits import MODEL_TIMEOUT_SECONDS
+
 DEFAULT_MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 DEFAULT_MODEL = "google:gemini-3.5-flash-lite"
-DEFAULT_FALLBACK_MODELS = ("google:gemini-3-flash-preview",)
+DEFAULT_FALLBACK_MODELS = ("openai:gpt-4o-mini", "google:gemini-3-flash-preview")
 SUPPORTED_PROVIDERS = {
     "google", "google-cloud", "google-gla", "google-vertex", "openai", "openai-responses",
 }
@@ -38,6 +40,7 @@ class Settings:
     port: int = 8788
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
     fallback_models: tuple[str, ...] = DEFAULT_FALLBACK_MODELS
+    model_timeout_seconds: float = MODEL_TIMEOUT_SECONDS
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -62,6 +65,9 @@ class Settings:
                 os.getenv("MAX_UPLOAD_BYTES"), DEFAULT_MAX_UPLOAD_BYTES
             ),
             fallback_models=fallback_models,
+            model_timeout_seconds=_positive_float(
+                os.getenv("MODEL_TIMEOUT_SECONDS"), MODEL_TIMEOUT_SECONDS
+            ),
         )
 
     def is_provider_configured(self, model: str) -> bool:
@@ -89,6 +95,16 @@ def _positive_int(value: str | None, fallback: int) -> int:
         return fallback
     try:
         parsed = int(value)
+    except ValueError:
+        return fallback
+    return parsed if parsed > 0 else fallback
+
+
+def _positive_float(value: str | None, fallback: float) -> float:
+    if not value:
+        return fallback
+    try:
+        parsed = float(value)
     except ValueError:
         return fallback
     return parsed if parsed > 0 else fallback
