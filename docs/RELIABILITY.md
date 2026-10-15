@@ -28,6 +28,7 @@ Limits are defined in `limits.py`. File size and pixel dimensions are validated 
 | Local document processing | 15 s | Disposable process, killed on timeout/cancel |
 | End-to-end analysis timeout | 42 s | Covers local processing & provider retries, returns `504` |
 | Latency before fallback | 30 s | Failover to next model if reserve available |
+| Fast-fail on fallback | 0 retries (`FAST_FAIL_RETRIES`) | Immediate failover on upstream HTTP/network errors when reserve available |
 | Model invocations | 3 per model | Shared budget for internal/external retries |
 
 The PDF is opened exactly once per request: `validate_upload` returns the validated `PdfReader`, reused throughout the pipeline.
@@ -47,7 +48,7 @@ The original file name remains within the HTTP process solely for extension vali
 
 ## Known Failure Modes
 
-- Transient failures or latency degradation in the primary model automatically trigger fallback models configured in `PYDANTIC_AI_FALLBACK_MODELS` (default: `openai:gpt-4o-mini`, `google:gemini-3-flash-preview`), ensuring cross-provider resilience without manual intervention. For OpenAI models handling PDF documents, extracted image previews are forwarded automatically to comply with multimodal API capabilities.
+- Transient failures or latency degradation in the primary model automatically trigger fallback models configured in `PYDANTIC_AI_FALLBACK_MODELS` (default: `openai:gpt-4o-mini`, `google:gemini-3.1-flash-lite`), ensuring cross-provider resilience without manual intervention. When a fallback candidate is available, upstream HTTP errors (such as 503 Service Unavailable, 429 Rate Limit) and connection drops trigger an immediate fast-fail over to the standby model (`FAST_FAIL_RETRIES=0` by default), avoiding backoff delays and preserving the 42s global deadline. For OpenAI models handling PDF documents, extracted image previews are forwarded automatically to comply with multimodal API capabilities.
 - If all models fail, the endpoint returns HTTP 503 after exhausted retries; quota or rate limits return HTTP 429. Non-transient errors (such as invalid credentials) do not trigger fallback. A slow provider triggers HTTP 504 when the local 42s budget expires; the call is cancelled, but tokens consumed upstream cannot be recovered.
 - The project has no client authentication or per-client rate limiting: requests beyond 2 concurrent extractions receive HTTP 429 without queueing or automatic retries. See [SECURITY.md](SECURITY.md).
 - A single compressed stream may expand up to `pypdf`'s safety ceiling (75 MB) during decompression before the 8 MB per-page limit drops it.

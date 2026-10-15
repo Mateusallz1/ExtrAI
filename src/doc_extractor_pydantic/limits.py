@@ -47,6 +47,9 @@ MODEL_TIMEOUT_SECONDS = 30.0
 PROVIDER_RETRIES = 2
 """Additional requests per model, shared by output retries and transient retries."""
 
+FAST_FAIL_RETRIES = 0
+"""Retries allowed on upstream provider errors when an alternate fallback model is configured."""
+
 PROVIDER_BACKOFF_SECONDS = 2.0
 """Initial exponential backoff delay before retrying transient provider failures."""
 

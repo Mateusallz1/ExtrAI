@@ -4,11 +4,11 @@ import ipaddress
 import os
 from dataclasses import dataclass
 
-from .limits import MODEL_TIMEOUT_SECONDS
+from .limits import FAST_FAIL_RETRIES, MODEL_TIMEOUT_SECONDS
 
 DEFAULT_MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 DEFAULT_MODEL = "google:gemini-3.5-flash-lite"
-DEFAULT_FALLBACK_MODELS = ("openai:gpt-4o-mini", "google:gemini-3-flash-preview")
+DEFAULT_FALLBACK_MODELS = ("openai:gpt-4o-mini", "google:gemini-3.1-flash-lite")
 SUPPORTED_PROVIDERS = {
     "google", "google-cloud", "google-gla", "google-vertex", "openai", "openai-responses",
 }
@@ -41,6 +41,7 @@ class Settings:
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
     fallback_models: tuple[str, ...] = DEFAULT_FALLBACK_MODELS
     model_timeout_seconds: float = MODEL_TIMEOUT_SECONDS
+    fast_fail_retries: int = FAST_FAIL_RETRIES
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -67,6 +68,9 @@ class Settings:
             fallback_models=fallback_models,
             model_timeout_seconds=_positive_float(
                 os.getenv("MODEL_TIMEOUT_SECONDS"), MODEL_TIMEOUT_SECONDS
+            ),
+            fast_fail_retries=_non_negative_int(
+                os.getenv("FAST_FAIL_RETRIES"), FAST_FAIL_RETRIES
             ),
         )
 
@@ -108,3 +112,14 @@ def _positive_float(value: str | None, fallback: float) -> float:
     except ValueError:
         return fallback
     return parsed if parsed > 0 else fallback
+
+
+def _non_negative_int(value: str | None, fallback: int) -> int:
+    if value is None or not value.strip():
+        return fallback
+    try:
+        parsed = int(value.strip())
+    except ValueError:
+        return fallback
+    return parsed if parsed >= 0 else fallback
+
