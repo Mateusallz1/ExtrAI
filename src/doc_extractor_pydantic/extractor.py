@@ -213,7 +213,11 @@ class DocumentExtractor:
                 continue
             try:
                 result = await self._run_model_with_backoff(
-                    target_agent, message_parts, per_model_timeout, total_usage
+                    target_agent,
+                    message_parts,
+                    per_model_timeout,
+                    total_usage,
+                    has_fallback=has_fallback,
                 )
                 model_used = target_model
                 if idx > 0:
@@ -265,8 +269,14 @@ class DocumentExtractor:
         message_parts: list[object],
         timeout: float,
         total_usage: ProviderUsage | None = None,
+        has_fallback: bool = False,
     ) -> Any:
         usage = total_usage if total_usage is not None else ProviderUsage()
+        allowed_retries = (
+            self.settings.fast_fail_retries
+            if has_fallback
+            else PROVIDER_RETRIES
+        )
         budget = RequestBudget(PROVIDER_RETRIES + 1, usage)
         run_usage = RunUsage()
         real_agent = isinstance(agent, Agent)
@@ -308,10 +318,10 @@ class DocumentExtractor:
                     ) from None
                 except ModelHTTPError as error:
                     retryable = error.status_code in {429, 500, 502, 503, 504}
-                    if not retryable or budget.used >= budget.limit:
+                    if not retryable or attempt >= allowed_retries or budget.used >= budget.limit:
                         raise _provider_error(error) from error
                 except (httpx.ConnectError, httpx.TimeoutException) as error:
-                    if budget.used >= budget.limit:
+                    if attempt >= allowed_retries or budget.used >= budget.limit:
                         raise ProviderConnectionError(
                             "Não foi possível conectar ao provedor de IA."
                         ) from error
