@@ -8,7 +8,7 @@ from .limits import FAST_FAIL_RETRIES, MODEL_TIMEOUT_SECONDS
 
 DEFAULT_MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 DEFAULT_MODEL = "google:gemini-3.5-flash-lite"
-DEFAULT_FALLBACK_MODELS = ("openai:gpt-4o-mini", "google:gemini-3.1-flash-lite")
+DEFAULT_FALLBACK_MODELS = ("google:gemini-3.1-flash-lite",)
 SUPPORTED_PROVIDERS = {
     "google", "google-cloud", "google-gla", "google-vertex", "openai", "openai-responses",
 }

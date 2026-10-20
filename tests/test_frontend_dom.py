@@ -1155,4 +1155,67 @@ def test_cin_document_renders_summary_and_fields(page_at_home: Page) -> None:
     assert "Validade: INDETERMINADA" in copied
 
 
+def test_extraction_renders_primary_model_indicator(page_at_home: Page) -> None:
+    page = page_at_home
+    answer(
+        page,
+        {
+            **RESULT,
+            "modelUsed": "google:gemini-3.5-flash",
+            "fallbackUsed": False,
+        },
+    )
+    upload(page)
+    analyze(page)
+
+    indicator = page.locator("#model-indicator")
+    assert indicator.is_visible()
+    assert "is-contingency" not in (indicator.get_attribute("class") or "")
+    assert page.locator("#model-name").inner_text() == "Gemini 3.5 Flash"
+    assert not page.locator("#model-contingency-badge").is_visible()
+
+
+def test_extraction_renders_contingency_fallback_badge(page_at_home: Page) -> None:
+    page = page_at_home
+    answer(
+        page,
+        {
+            **RESULT,
+            "modelUsed": "google:gemini-3.1-flash-lite",
+            "fallbackUsed": True,
+        },
+    )
+    upload(page)
+    analyze(page)
+
+    indicator = page.locator("#model-indicator")
+    assert indicator.is_visible()
+    assert "is-contingency" in (indicator.get_attribute("class") or "")
+    assert page.locator("#model-name").inner_text() == "Gemini 3.1 Flash Lite"
+    contingency_badge = page.locator("#model-contingency-badge")
+    assert contingency_badge.is_visible()
+    assert contingency_badge.inner_text() == "CONTINGÊNCIA"
+
+
+def test_clearing_extraction_hides_model_indicator(page_at_home: Page) -> None:
+    page = page_at_home
+    answer(
+        page,
+        {
+            **RESULT,
+            "modelUsed": "google:gemini-3.5-flash",
+            "fallbackUsed": False,
+        },
+    )
+    upload(page)
+    analyze(page)
+
+    indicator = page.locator("#model-indicator")
+    assert indicator.is_visible()
+
+    page.click("#submit")
+    assert not indicator.is_visible()
+
+
+
 

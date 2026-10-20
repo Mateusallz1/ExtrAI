@@ -11,6 +11,28 @@ from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
 
 
+def _extract_token_counts(usage: object) -> tuple[int, int]:
+    input_tokens = getattr(usage, "input_tokens", 0) or 0
+    output_tokens = getattr(usage, "output_tokens", 0) or 0
+    details = getattr(usage, "details", None)
+    if isinstance(details, dict) and details:
+        if input_tokens == 0:
+            input_tokens = sum(
+                val
+                for key, val in details.items()
+                if isinstance(val, int)
+                and (key.endswith("_prompt_tokens") or key == "cached_content_tokens")
+            )
+        if output_tokens == 0:
+            output_tokens = sum(
+                val
+                for key, val in details.items()
+                if isinstance(val, int)
+                and (key.endswith("_candidates_tokens") or key == "thoughts_tokens")
+            )
+    return input_tokens, output_tokens
+
+
 @dataclass
 class ProviderUsage:
     requests: int = 0
@@ -18,8 +40,9 @@ class ProviderUsage:
     output_tokens: int = 0
 
     def add_tokens(self, usage: object) -> None:
-        self.input_tokens += getattr(usage, "input_tokens", 0)
-        self.output_tokens += getattr(usage, "output_tokens", 0)
+        in_tokens, out_tokens = _extract_token_counts(usage)
+        self.input_tokens += in_tokens
+        self.output_tokens += out_tokens
 
     def to_api(self) -> dict[str, int]:
         return {
@@ -64,5 +87,10 @@ class BudgetedModel(WrapperModel):
         response = await self.wrapped.request(
             messages, model_settings, model_request_parameters
         )
+        in_tokens, out_tokens = _extract_token_counts(response.usage)
+        if getattr(response.usage, "input_tokens", 0) == 0 and in_tokens > 0:
+            response.usage.input_tokens = in_tokens
+        if getattr(response.usage, "output_tokens", 0) == 0 and out_tokens > 0:
+            response.usage.output_tokens = out_tokens
         self.budget.usage.add_tokens(response.usage)
         return response

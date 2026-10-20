@@ -823,13 +823,75 @@ def test_primary_model_failure_triggers_fallback_model(monkeypatch) -> None:
     )
     result = asyncio.run(extractor.extract("doc.png", PNG))
 
-    assert primary.calls == 1
+    assert primary.calls == 2
     assert fallback.calls == 1
     assert result["kind"] == "cnh"
     assert result["modelUsed"] == "fallback:model"
+    assert result["fallbackUsed"] is True
 
 
-def test_primary_model_fast_fails_on_connection_error(monkeypatch) -> None:
+def test_primary_model_recovers_on_second_attempt_without_fallback(monkeypatch) -> None:
+    class TransientPrimaryAgent:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def run(self, messages, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise ModelHTTPError(503, "primary:model", {"status": "unavailable"})
+            return type(
+                "Result",
+                (),
+                {"output": DocumentExtraction(kind="cnh")},
+            )()
+
+    class UnusedFallbackAgent:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def run(self, messages, *args, **kwargs):
+            self.calls += 1
+            return type("Result", (), {"output": DocumentExtraction(kind="rg")})()
+
+    primary = TransientPrimaryAgent()
+    fallback = UnusedFallbackAgent()
+    monkeypatch.setattr(extractor_module, "PROVIDER_BACKOFF_SECONDS", 0)
+
+    extractor = DocumentExtractor(
+        settings=Settings(model="primary:model", fallback_models=("fallback:model",)),
+        agent=primary,
+        fallback_agents=[fallback],
+    )
+    result = asyncio.run(extractor.extract("doc.png", PNG))
+
+    assert primary.calls == 2
+    assert fallback.calls == 0
+    assert result["kind"] == "cnh"
+    assert result["modelUsed"] == "primary:model"
+    assert result["fallbackUsed"] is False
+
+
+def test_primary_model_success_reports_fallback_not_used() -> None:
+    class SuccessfulPrimaryAgent:
+        async def run(self, messages, *args, **kwargs):
+            return type(
+                "Result",
+                (),
+                {"output": DocumentExtraction(kind="cnh")},
+            )()
+
+    primary = SuccessfulPrimaryAgent()
+    extractor = DocumentExtractor(
+        settings=Settings(model="primary:model", fallback_models=("fallback:model",)),
+        agent=primary,
+        fallback_agents=[SuccessfulPrimaryAgent()],
+    )
+    result = asyncio.run(extractor.extract("doc.png", PNG))
+    assert result["modelUsed"] == "primary:model"
+    assert result["fallbackUsed"] is False
+
+
+def test_primary_model_retries_once_then_fails_over_on_connection_error(monkeypatch) -> None:
     class ConnectionFailingPrimaryAgent:
         def __init__(self) -> None:
             self.calls = 0
@@ -865,7 +927,7 @@ def test_primary_model_fast_fails_on_connection_error(monkeypatch) -> None:
     )
     result = asyncio.run(extractor.extract("doc.png", PNG))
 
-    assert primary.calls == 1
+    assert primary.calls == 2
     assert fallback.calls == 1
     assert result["kind"] == "cnh"
     assert result["modelUsed"] == "fallback:model"
@@ -931,8 +993,8 @@ def test_all_models_failing_raises_provider_unavailable(monkeypatch) -> None:
     with pytest.raises(ProviderUnavailableError):
         asyncio.run(extractor.extract("doc.png", PNG))
 
-    assert primary.calls == 1
-    assert fallback.calls == 3
+    assert primary.calls == 2
+    assert fallback.calls == 1
 
 
 def test_non_retryable_error_does_not_trigger_fallback(monkeypatch) -> None:
@@ -970,7 +1032,6 @@ def test_settings_fallback_models_env_parsing(monkeypatch) -> None:
     monkeypatch.delenv("PYDANTIC_AI_FALLBACK_MODELS", raising=False)
     default_settings = Settings.from_env()
     assert default_settings.fallback_models == (
-        "openai:gpt-4o-mini",
         "google:gemini-3.1-flash-lite",
     )
 
@@ -1041,22 +1102,22 @@ def test_settings_model_timeout_seconds_env_parsing(monkeypatch) -> None:
 def test_settings_fast_fail_retries_env_parsing(monkeypatch) -> None:
     monkeypatch.delenv("FAST_FAIL_RETRIES", raising=False)
     default_settings = Settings.from_env()
-    assert default_settings.fast_fail_retries == 0
+    assert default_settings.fast_fail_retries == 1
 
-    monkeypatch.setenv("FAST_FAIL_RETRIES", "1")
+    monkeypatch.setenv("FAST_FAIL_RETRIES", "0")
     custom_settings = Settings.from_env()
-    assert custom_settings.fast_fail_retries == 1
+    assert custom_settings.fast_fail_retries == 0
 
     monkeypatch.setenv("FAST_FAIL_RETRIES", "-1")
     invalid_settings = Settings.from_env()
-    assert invalid_settings.fast_fail_retries == 0
+    assert invalid_settings.fast_fail_retries == 1
 
     monkeypatch.setenv("FAST_FAIL_RETRIES", "not-a-number")
     fallback_settings = Settings.from_env()
-    assert fallback_settings.fast_fail_retries == 0
+    assert fallback_settings.fast_fail_retries == 1
 
 
-def test_custom_fast_fail_retries_allows_retry_before_fallback(monkeypatch) -> None:
+def test_custom_fast_fail_retries_allows_immediate_failover_when_zero(monkeypatch) -> None:
     class FailingPrimaryAgent:
         def __init__(self) -> None:
             self.calls = 0
@@ -1084,7 +1145,7 @@ def test_custom_fast_fail_retries_allows_retry_before_fallback(monkeypatch) -> N
     settings = Settings(
         model="primary:model",
         fallback_models=("fallback:model",),
-        fast_fail_retries=1,
+        fast_fail_retries=0,
     )
     extractor = DocumentExtractor(
         settings=settings,
@@ -1093,10 +1154,43 @@ def test_custom_fast_fail_retries_allows_retry_before_fallback(monkeypatch) -> N
     )
     result = asyncio.run(extractor.extract("doc.png", PNG))
 
-    assert primary.calls == 2
+    assert primary.calls == 1
     assert fallback.calls == 1
     assert result["kind"] == "cnh"
     assert result["modelUsed"] == "fallback:model"
+
+
+def test_build_agent_uses_native_json_output(monkeypatch) -> None:
+    from pydantic_ai import NativeOutput
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    agent = DocumentExtractor(Settings(model="google:gemini-3.5-flash-lite"))._build_agent()
+    assert isinstance(agent.output_type, NativeOutput)
+
+
+def test_provider_usage_reconstructs_multimodal_token_details() -> None:
+    from pydantic_ai.usage import RequestUsage
+
+    from doc_extractor_pydantic.provider_usage import ProviderUsage
+
+    usage = ProviderUsage()
+    usage.add_tokens(
+        RequestUsage(
+            input_tokens=0,
+            output_tokens=0,
+            details={
+                "text_prompt_tokens": 750,
+                "image_prompt_tokens": 1300,
+                "text_candidates_tokens": 180,
+                "thoughts_tokens": 20,
+            },
+        )
+    )
+    assert usage.to_api() == {
+        "requests": 0,
+        "inputTokens": 2050,
+        "outputTokens": 200,
+    }
 
 
 def test_build_model_message_parts_gemini() -> None:

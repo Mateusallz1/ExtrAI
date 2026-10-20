@@ -57,7 +57,13 @@
           </div>
         </div>
         <div class="panel">
-          <h2>Informações encontradas</h2>
+          <div class="panel-header-row">
+            <h2>Informações encontradas</h2>
+            <div id="model-indicator" class="model-indicator hidden" title="Modelo de IA utilizado na extração">
+              <span id="model-name" class="model-name"></span>
+              <span id="model-contingency-badge" class="model-contingency-badge hidden">Contingência</span>
+            </div>
+          </div>
           <div id="fields" class="fields"></div>
           <div class="actions">
             <button id="copy-core" type="button" title="Copiar apenas os valores de Nome, CPF, Data de Nascimento e Registro (Ctrl+Shift+C ou Alt+C)">Copiar essenciais</button>

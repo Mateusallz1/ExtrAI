@@ -28,7 +28,8 @@ Limits are defined in `limits.py`. File size and pixel dimensions are validated 
 | Local document processing | 15 s | Disposable process, killed on timeout/cancel |
 | End-to-end analysis timeout | 42 s | Covers local processing & provider retries, returns `504` |
 | Latency before fallback | 30 s | Failover to next model if reserve available |
-| Fast-fail on fallback | 0 retries (`FAST_FAIL_RETRIES`) | Immediate failover on upstream HTTP/network errors when reserve available |
+| Per-attempt HTTP timeout | 15 s (`ATTEMPT_TIMEOUT_SECONDS`) | Bounds individual HTTP requests (`X-Server-Timeout`) |
+| Primary retries before fallback | 1 retry (`FAST_FAIL_RETRIES`) | 2 attempts on primary before 1 final contingency attempt |
 | Model invocations | 3 per model | Shared budget for internal/external retries |
 
 The PDF is opened exactly once per request: `validate_upload` returns the validated `PdfReader`, reused throughout the pipeline.
@@ -48,7 +49,7 @@ The original file name remains within the HTTP process solely for extension vali
 
 ## Known Failure Modes
 
-- Transient failures or latency degradation in the primary model automatically trigger fallback models configured in `PYDANTIC_AI_FALLBACK_MODELS` (default: `openai:gpt-4o-mini`, `google:gemini-3.1-flash-lite`), ensuring cross-provider resilience without manual intervention. When a fallback candidate is available, upstream HTTP errors (such as 503 Service Unavailable, 429 Rate Limit) and connection drops trigger an immediate fast-fail over to the standby model (`FAST_FAIL_RETRIES=0` by default), avoiding backoff delays and preserving the 42s global deadline. For OpenAI models handling PDF documents, extracted image previews are forwarded automatically to comply with multimodal API capabilities.
+- Transient failures or latency degradation in the primary model (`google:gemini-3.5-flash-lite`) first perform 1 backoff retry (`FAST_FAIL_RETRIES=1`, totaling 2 primary attempts with a 15s per-attempt HTTP timeout and native JSON schema output via `NativeOutput`) before triggering the contingency model configured in `PYDANTIC_AI_FALLBACK_MODELS` (default: `google:gemini-3.1-flash-lite`) for 1 final attempt, preserving the 42s global deadline. For OpenAI models handling PDF documents when explicitly configured, extracted image previews are forwarded automatically to comply with multimodal API capabilities.
 - If all models fail, the endpoint returns HTTP 503 after exhausted retries; quota or rate limits return HTTP 429. Non-transient errors (such as invalid credentials) do not trigger fallback. A slow provider triggers HTTP 504 when the local 42s budget expires; the call is cancelled, but tokens consumed upstream cannot be recovered.
 - The project has no client authentication or per-client rate limiting: requests beyond 2 concurrent extractions receive HTTP 429 without queueing or automatic retries. See [SECURITY.md](SECURITY.md).
 - A single compressed stream may expand up to `pypdf`'s safety ceiling (75 MB) during decompression before the 8 MB per-page limit drops it.
