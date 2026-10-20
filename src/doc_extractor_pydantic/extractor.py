@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 import httpx
-from pydantic_ai import Agent, BinaryContent, UsageLimits
+from pydantic_ai import Agent, BinaryContent, NativeOutput, UsageLimits
 from pydantic_ai.exceptions import (
     ModelHTTPError,
     UnexpectedModelBehavior,
@@ -34,6 +34,7 @@ from .document_processing import (
     validate_upload as validate_upload,
 )
 from .limits import (
+    ATTEMPT_TIMEOUT_SECONDS,
     EXTRACTION_TIMEOUT_SECONDS,
     MODEL_TIMEOUT_SECONDS,
     PROVIDER_BACKOFF_SECONDS,
@@ -69,7 +70,7 @@ def _provider_error(error: ModelHTTPError) -> RuntimeError:
         return ProviderRateLimitError(
             "O provedor atingiu um limite temporário. Tente novamente em instantes."
         )
-    if error.status_code in {500, 502, 503, 504}:
+    if error.status_code in {408, 500, 502, 503, 504}:
         return ProviderUnavailableError(
             "O provedor de IA está temporariamente indisponível. Tente novamente."
         )
@@ -120,7 +121,7 @@ class DocumentExtractor:
             agent_model = model_class(model_name, provider=provider)
         return Agent(
             model=agent_model,
-            output_type=DocumentExtraction,
+            output_type=NativeOutput(DocumentExtraction),
             instructions=EXTRACTION_INSTRUCTIONS,
             model_settings=model_settings,
             retries=PROVIDER_RETRIES,
@@ -170,6 +171,7 @@ class DocumentExtractor:
         last_error: Exception | None = None
         result = None
         model_used: str | None = None
+        fallback_used: bool = False
         total_usage = ProviderUsage()
         for idx, (target_model, injected_agent) in enumerate(candidates):
             has_fallback = idx < len(candidates) - 1
@@ -218,8 +220,10 @@ class DocumentExtractor:
                     per_model_timeout,
                     total_usage,
                     has_fallback=has_fallback,
+                    is_fallback=(idx > 0),
                 )
                 model_used = target_model
+                fallback_used = (idx > 0)
                 if idx > 0:
                     logger.info("fallback succeeded using model=%s", target_model)
                 break
@@ -261,6 +265,7 @@ class DocumentExtractor:
             previews=previews,
             usage=total_usage.to_api(),
             model_used=model_used,
+            fallback_used=fallback_used,
         )
 
     async def _run_model_with_backoff(
@@ -270,24 +275,35 @@ class DocumentExtractor:
         timeout: float,
         total_usage: ProviderUsage | None = None,
         has_fallback: bool = False,
+        is_fallback: bool = False,
     ) -> Any:
         usage = total_usage if total_usage is not None else ProviderUsage()
-        allowed_retries = (
-            self.settings.fast_fail_retries
-            if has_fallback
-            else PROVIDER_RETRIES
-        )
+        if has_fallback:
+            allowed_retries = self.settings.fast_fail_retries
+        elif is_fallback:
+            allowed_retries = 0
+        else:
+            allowed_retries = PROVIDER_RETRIES
         budget = RequestBudget(PROVIDER_RETRIES + 1, usage)
         run_usage = RunUsage()
         real_agent = isinstance(agent, Agent)
         bounded_model = BudgetedModel(agent.model, budget) if real_agent else None
+        model_deadline = time.perf_counter() + timeout
         async with asyncio.timeout(timeout):
             for attempt in range(PROVIDER_RETRIES + 1):
                 try:
                     if real_agent:
+                        attempt_timeout = max(
+                            1.0,
+                            min(
+                                ATTEMPT_TIMEOUT_SECONDS,
+                                model_deadline - time.perf_counter(),
+                            ),
+                        )
                         result = await agent.run(
                             message_parts,
                             model=bounded_model,
+                            model_settings={"timeout": round(attempt_timeout, 2)},
                             usage=run_usage,
                             usage_limits=UsageLimits(
                                 response_tokens_limit=1500, request_limit=budget.limit
@@ -317,7 +333,7 @@ class DocumentExtractor:
                         "A análise atingiu o limite local de tentativas."
                     ) from None
                 except ModelHTTPError as error:
-                    retryable = error.status_code in {429, 500, 502, 503, 504}
+                    retryable = error.status_code in {408, 429, 500, 502, 503, 504}
                     if not retryable or attempt >= allowed_retries or budget.used >= budget.limit:
                         raise _provider_error(error) from error
                 except (httpx.ConnectError, httpx.TimeoutException) as error:
@@ -405,6 +421,7 @@ def to_api_response(
     previews: list[dict[str, Any]] | None = None,
     usage: dict[str, int] | None = None,
     model_used: str | None = None,
+    fallback_used: bool = False,
 ) -> dict[str, Any]:
     fields: dict[str, dict[str, Any]] = {}
     for key, value in extraction.fields.populated().items():
@@ -437,6 +454,7 @@ def to_api_response(
     }
     if model_used is not None:
         response["modelUsed"] = model_used
+        response["fallbackUsed"] = fallback_used
     return response
 
 

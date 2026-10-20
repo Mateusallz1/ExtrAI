@@ -42,15 +42,18 @@ EXTRACTION_TIMEOUT_SECONDS = 42.0
 """Total time budget for local processing and provider responses, including retries."""
 
 MODEL_TIMEOUT_SECONDS = 30.0
-"""Time budget allowed for a single model attempt before failing over to a fallback model."""
+"""Time budget allowed for a single model candidate before failing over to a fallback model."""
+
+ATTEMPT_TIMEOUT_SECONDS = 15.0
+"""Per-attempt HTTP timeout sent to the provider so stalled requests fail fast."""
 
 PROVIDER_RETRIES = 2
 """Additional requests per model, shared by output retries and transient retries."""
 
-FAST_FAIL_RETRIES = 0
-"""Retries allowed on upstream provider errors when an alternate fallback model is configured."""
+FAST_FAIL_RETRIES = 1
+"""Retries allowed on the primary model before failing over to the contingency model."""
 
-PROVIDER_BACKOFF_SECONDS = 2.0
+PROVIDER_BACKOFF_SECONDS = 1.5
 """Initial exponential backoff delay before retrying transient provider failures."""
 
 

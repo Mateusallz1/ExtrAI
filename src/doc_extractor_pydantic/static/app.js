@@ -44,6 +44,9 @@ const warningsTitle = document.querySelector("#warnings-title");
 const warnings = document.querySelector("#warnings");
 const fields = document.querySelector("#fields");
 const rawText = document.querySelector("#raw-text");
+const modelIndicator = document.querySelector("#model-indicator");
+const modelName = document.querySelector("#model-name");
+const modelContingencyBadge = document.querySelector("#model-contingency-badge");
 let lastData = null;
 let previewUrl = null;
 let selectedIsPdf = false;
@@ -72,6 +75,20 @@ function formatSuccessMessage(durationMs) {
   }
   return "Tudo certo! Confira as informações antes de copiar.";
 }
+
+function formatModelLabel(model) {
+  if (!model || typeof model !== "string") return "";
+  const clean = model.replace(/^(google|openai):/, "");
+  const map = {
+    "gemini-3.5-flash": "Gemini 3.5 Flash",
+    "gemini-3.5-flash-lite": "Gemini 3.5 Flash Lite",
+    "gemini-3.1-flash-lite": "Gemini 3.1 Flash Lite",
+    "gemini-3-flash-preview": "Gemini 3 Flash",
+    "gpt-4o-mini": "GPT-4o mini",
+  };
+  return map[clean] || clean;
+}
+
 
 
 function syncResultHeight() {
@@ -148,6 +165,9 @@ input.addEventListener("change", () => {
   warnings.replaceChildren();
   fields.replaceChildren();
   rawText.textContent = "";
+  if (modelIndicator) modelIndicator.classList.add("hidden");
+  if (modelContingencyBadge) modelContingencyBadge.classList.add("hidden");
+  if (modelName) modelName.textContent = "";
   status.className = "status";
   status.textContent = "";
   focusState.previews = [];
@@ -789,6 +809,23 @@ function renderResult(data) {
   const missing = (Array.isArray(data.missing) ? data.missing : [])
     .map((field) => renderFieldCard(field.key, { label: field.label, value: null }));
   fields.replaceChildren(...found, ...missing);
+  if (data.modelUsed) {
+    const formatted = formatModelLabel(data.modelUsed);
+    if (modelName) modelName.textContent = formatted;
+    const isFallback = Boolean(data.fallbackUsed);
+    if (modelContingencyBadge) {
+      modelContingencyBadge.classList.toggle("hidden", !isFallback);
+    }
+    if (modelIndicator) {
+      modelIndicator.classList.toggle("is-contingency", isFallback);
+      modelIndicator.title = isFallback
+        ? `Extração processada via modelo de contingência (${formatted}) após indisponibilidade do modelo primário.`
+        : `Modelo de IA utilizado: ${formatted}`;
+      modelIndicator.classList.remove("hidden");
+    }
+  } else if (modelIndicator) {
+    modelIndicator.classList.add("hidden");
+  }
   checkCrossDateConsistency();
   syncResultHeight();
 }
@@ -1041,6 +1078,9 @@ function clearExtraction() {
   warnings.replaceChildren();
   fields.replaceChildren();
   rawText.textContent = "";
+  if (modelIndicator) modelIndicator.classList.add("hidden");
+  if (modelContingencyBadge) modelContingencyBadge.classList.add("hidden");
+  if (modelName) modelName.textContent = "";
   status.className = "status";
   status.textContent = "";
   focusState.previews = [];
